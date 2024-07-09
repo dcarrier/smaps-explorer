@@ -1,0 +1,30 @@
+use crate::app::{App, AppResult};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+/// Handles the key events and updates the state of [`App`].
+pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
+    match key_event.code {
+        // Exit application on `ESC` or `q`
+        KeyCode::Esc | KeyCode::Char('q') => {
+            app.quit();
+        }
+        // Exit application on `Ctrl-C`
+        KeyCode::Char('c') | KeyCode::Char('C') => {
+            if key_event.modifiers == KeyModifiers::CONTROL {
+                app.quit();
+            }
+        }
+        //KeyCode::Char('h') | KeyCode::Left => app.segments.unselect(),
+        KeyCode::Char('j') | KeyCode::Down => app.segments.next(),
+        KeyCode::Char('k') | KeyCode::Up => app.segments.previous(),
+        KeyCode::Char('l') | KeyCode::Right => app.segments.open(),
+        KeyCode::Char('h') | KeyCode::Left => app.segments.close(),
+        KeyCode::Enter => app.segments.toggle_selected(),
+        KeyCode::Char('g') => app.go_top(),
+        KeyCode::Char('G') => app.go_bottom(),
+
+        // Other handlers you could add here.
+        _ => {}
+    }
+    Ok(())
+}
