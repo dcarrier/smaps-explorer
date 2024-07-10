@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use crate::app::{self, App};
 use itertools::Itertools;
 use log::LevelFilter;
@@ -12,11 +14,15 @@ use tui_logger::{TuiLoggerLevelOutput, TuiLoggerWidget, TuiWidgetState};
 #[derive(Clone, Copy)]
 pub struct MemoryMapWidget<'a> {
     pub app: &'a App,
+    selected_identifier: (usize, usize),
 }
 
 impl<'a> MemoryMapWidget<'a> {
     pub fn new(app: &'a App) -> Self {
-        Self { app }
+        Self {
+            app,
+            selected_identifier: (0, 0),
+        }
     }
 }
 
@@ -29,12 +35,12 @@ impl<'a> Widget for MemoryMapWidget<'a> {
         // we are at a top level element. This means that we would like to display
         // all children elements in the widget. Otherwise we will only display the child element.
 
+        /*
         let segments = match self.app.get_selected_segments() {
             Some(v) => v,
             // TODO: If there are no segments then we should probably display a helpful
             // no segments screen or similar. Leaving this for now.
             None => return,
-            /*
             Paragraph::new(Span::styled(
                 format!("no memorymap"),
                 Style::default().fg(Color::White).bold(),
@@ -45,48 +51,29 @@ impl<'a> Widget for MemoryMapWidget<'a> {
                     .padding(Padding::new(0, 0, area.height / 2, 0)),
             )
             .alignment(Alignment::Center),
-            */
         };
+        */
 
         // Right now I am doing the same thing for both cases. But that doesn't actually make any sense.
         // I think this whole thing needs to move somewhere else. Maybe render function.
-        let widget = if segments.len() == 1 {
-            // TODO: get rid of unwrap
-            let v = segments.last().unwrap();
-            Paragraph::new(Span::styled(
-                format!("{}", app::mmpath_to_string(&v.pathname),),
-                Style::default().fg(Color::White).bold(),
-            ))
-            .wrap(Wrap { trim: true })
-            .block(
-                Block::bordered()
-                    .title_top(format!("{:#x}", v.address.0))
-                    .title_bottom(format!("{:#x}", v.address.1))
-                    .title_style(Style::default().fg(Color::LightGreen))
-                    .title_alignment(Alignment::Center)
-                    .border_style(Style::default())
-                    .padding(Padding::new(0, 0, area.height / 2, 0)),
-            )
-            .alignment(Alignment::Center)
-        } else {
-            // TODO: get rid of unwrap
-            let v = segments.last().unwrap();
-            Paragraph::new(Span::styled(
-                format!("{}", app::mmpath_to_string(&v.pathname),),
-                Style::default().fg(Color::White).bold(),
-            ))
-            .wrap(Wrap { trim: true })
-            .block(
-                Block::bordered()
-                    .title_top(format!("{:#x}", v.address.0))
-                    .title_bottom(format!("{:#x}", v.address.1))
-                    .title_style(Style::default().fg(Color::LightGreen))
-                    .title_alignment(Alignment::Center)
-                    .border_style(Style::default())
-                    .padding(Padding::new(0, 0, area.height / 2, 0)),
-            )
-            .alignment(Alignment::Center)
-        };
+        let outer_key = self.selected_identifier.0;
+        let inner_key = self.selected_identifier.1;
+        let v = self.app.segments.segments[outer_key][inner_key].clone();
+        let widget = Paragraph::new(Span::styled(
+            format!("{}", app::mmpath_to_string(&v.pathname),),
+            Style::default().fg(Color::White).bold(),
+        ))
+        .wrap(Wrap { trim: true })
+        .block(
+            Block::bordered()
+                .title_top(format!("{:#x}", v.address.0))
+                .title_bottom(format!("{:#x}", v.address.1))
+                .title_style(Style::default().fg(Color::LightGreen))
+                .title_alignment(Alignment::Center)
+                .border_style(Style::default())
+                .padding(Padding::new(0, 0, area.height / 2, 0)),
+        )
+        .alignment(Alignment::Center);
 
         widget.render(area, buf);
     }
@@ -210,7 +197,7 @@ pub fn render(app: &mut App, frame: &mut Frame) {
 
     let memory_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints(memory_layout_constraints)
+        .constraints(memory_layout_constraints.clone())
         .split(layout[0]);
 
     let sidebar_layout = Layout::default()
@@ -219,18 +206,29 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         .split(layout[1]);
 
     // TODO: I am thinking both of these should be moved to app.rs just like app.segments
-    let memory_widget = MemoryMapWidget::new(app);
+    let mut memory_widget = MemoryMapWidget::new(app);
     let info_widget = InfoWidget::new(app);
     let log_widget = LogWidget::new(app);
-
-    if app.debug {
-        frame.render_widget(log_widget, memory_layout[1]);
-    }
 
     // TODO: I believe that we want to loop over all possible memory_layouts
     // if we are at a parent element. This way we can render all of the children.
     // If we are at a child we only need to render one screen for the chosen item.
-    frame.render_widget(memory_widget, memory_layout[0]);
+    let indices = match app.segments.get_selected_identifiers() {
+        Some(v) => v,
+        // TODO this is obv bad but trying to test logic
+        None => panic!("did not expect to hit this"),
+    };
+    if memory_layout_constraints.len() > 1 {
+        let outer_key = indices[0].0;
+        let memory_maps = app.segments.segments[outer_key].clone();
+        for (i, _) in memory_maps.iter().enumerate() {
+            memory_widget.selected_identifier = (outer_key, i);
+            frame.render_widget(memory_widget, memory_layout[i]);
+        }
+    } else {
+        memory_widget.selected_identifier = indices[0];
+        frame.render_widget(memory_widget, memory_layout[0]);
+    };
     //
     //
     frame.render_widget(info_widget, sidebar_layout[0]);
