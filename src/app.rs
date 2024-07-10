@@ -66,13 +66,14 @@ impl App {
         self.segments.state.select_last();
     }
 
-    pub fn get_selected_segment(&self) -> Option<MemoryMap> {
-        let indices = self.segments.get_selected_identifier();
+    pub fn get_selected_segments(&self) -> Option<Vec<MemoryMap>> {
+        let indices = self.segments.get_selected_identifiers();
         match indices {
-            Some(v) => {
-                let (outer_key, inner_key) = v;
-                return Some(self.segments.segments[outer_key][inner_key].clone());
-            }
+            Some(v) => Some(Vec::from_iter(
+                v.iter()
+                    .map(|item| self.segments.segments[item.0][item.1].clone())
+                    .collect::<Vec<MemoryMap>>(),
+            )),
             None => None,
         }
     }
@@ -161,12 +162,13 @@ impl SegmentList {
         self.state.toggle_selected();
     }
 
-    pub fn get_selected_identifier(&self) -> Option<(usize, usize)> {
-        let indices = self.state.selected().last();
-        match indices {
-            Some(v) => Some(v.clone()),
-            None => None,
+    pub fn get_selected_identifiers(&self) -> Option<Vec<(usize, usize)>> {
+        let indices = self.state.selected();
+        if indices.len() == 0 {
+            return None;
         }
+
+        return Some(indices.to_vec());
     }
 
     fn render_list(&mut self, area: Rect, buf: &mut Buffer) {

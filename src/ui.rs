@@ -22,8 +22,38 @@ impl<'a> MemoryMapWidget<'a> {
 
 impl<'a> Widget for MemoryMapWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let widget = match self.app.get_selected_segment() {
-            Some(v) => Paragraph::new(Span::styled(
+        // TODO: Not correct to unwrap and assume last() here, but I wanna
+        // make sure that everything is still working.
+
+        // If the length of the selected_segments is '1' then we assume that
+        // we are at a top level element. This means that we would like to display
+        // all children elements in the widget. Otherwise we will only display the child element.
+
+        let segments = match self.app.get_selected_segments() {
+            Some(v) => v,
+            // TODO: If there are no segments then we should probably display a helpful
+            // no segments screen or similar. Leaving this for now.
+            None => return,
+            /*
+            Paragraph::new(Span::styled(
+                format!("no memorymap"),
+                Style::default().fg(Color::White).bold(),
+            ))
+            .block(
+                Block::bordered()
+                    .border_style(Style::default())
+                    .padding(Padding::new(0, 0, area.height / 2, 0)),
+            )
+            .alignment(Alignment::Center),
+            */
+        };
+
+        // Right now I am doing the same thing for both cases. But that doesn't actually make any sense.
+        // I think this whole thing needs to move somewhere else. Maybe render function.
+        let widget = if segments.len() == 1 {
+            // TODO: get rid of unwrap
+            let v = segments.last().unwrap();
+            Paragraph::new(Span::styled(
                 format!("{}", app::mmpath_to_string(&v.pathname),),
                 Style::default().fg(Color::White).bold(),
             ))
@@ -37,17 +67,25 @@ impl<'a> Widget for MemoryMapWidget<'a> {
                     .border_style(Style::default())
                     .padding(Padding::new(0, 0, area.height / 2, 0)),
             )
-            .alignment(Alignment::Center),
-            None => Paragraph::new(Span::styled(
-                format!("no memorymap"),
+            .alignment(Alignment::Center)
+        } else {
+            // TODO: get rid of unwrap
+            let v = segments.last().unwrap();
+            Paragraph::new(Span::styled(
+                format!("{}", app::mmpath_to_string(&v.pathname),),
                 Style::default().fg(Color::White).bold(),
             ))
+            .wrap(Wrap { trim: true })
             .block(
                 Block::bordered()
+                    .title_top(format!("{:#x}", v.address.0))
+                    .title_bottom(format!("{:#x}", v.address.1))
+                    .title_style(Style::default().fg(Color::LightGreen))
+                    .title_alignment(Alignment::Center)
                     .border_style(Style::default())
                     .padding(Padding::new(0, 0, area.height / 2, 0)),
             )
-            .alignment(Alignment::Center),
+            .alignment(Alignment::Center)
         };
 
         widget.render(area, buf);
@@ -67,7 +105,9 @@ impl<'a> InfoWidget<'a> {
 
 impl<'a> Widget for InfoWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let widget = match self.app.get_selected_segment() {
+        // TODO: Not correct to unwrap and assume last() here, but I wanna
+        // make sure that everything is still working.
+        let widget = match self.app.get_selected_segments().unwrap().last() {
             Some(v) => {
                 let mut text = vec![
                     Line::from(format!("start_addr: {:#x}", v.address.0)),
@@ -154,16 +194,13 @@ pub fn render(app: &mut App, frame: &mut Frame) {
 
     // TODO: this logic should really go somewhere else
     // TODO: this no longer supports debug mode. Need to figure that out.
-    let memory_layout_constraints: Vec<Constraint> = match app.segments.get_selected_identifier() {
+    let memory_layout_constraints: Vec<Constraint> = match app.segments.get_selected_identifiers() {
         Some(indices) => {
-            let (outer_key, inner_key) = indices;
-            if inner_key == 0 {
+            // Size 1 means we are at a root element
+            if indices.len() == 1 {
+                let outer_key = indices[0].0;
                 let group_len = app.segments.segments[outer_key].len();
-                let mut constraints: Vec<Constraint> = Vec::with_capacity(group_len);
-                for i in 0..group_len {
-                    constraints.push(Constraint::Percentage(100 / group_len as u16));
-                }
-                constraints
+                vec![Constraint::Percentage(100 / group_len as u16); group_len]
             } else {
                 vec![Constraint::Percentage(100)]
             }
@@ -189,7 +226,13 @@ pub fn render(app: &mut App, frame: &mut Frame) {
     if app.debug {
         frame.render_widget(log_widget, memory_layout[1]);
     }
+
+    // TODO: I believe that we want to loop over all possible memory_layouts
+    // if we are at a parent element. This way we can render all of the children.
+    // If we are at a child we only need to render one screen for the chosen item.
     frame.render_widget(memory_widget, memory_layout[0]);
+    //
+    //
     frame.render_widget(info_widget, sidebar_layout[0]);
     frame.render_widget(&mut app.segments, sidebar_layout[1]);
 }
