@@ -36,7 +36,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     tui.init()?;
 
     // Start the main loop.
-    while app.running {
+    while app.running() {
         // Render the user interface.
         tui.draw(&mut app)?;
         // Handle events.

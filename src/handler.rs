@@ -15,11 +15,11 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
             }
         }
         //KeyCode::Char('h') | KeyCode::Left => app.segments.unselect(),
-        KeyCode::Char('j') | KeyCode::Down => app.segments.next(),
-        KeyCode::Char('k') | KeyCode::Up => app.segments.previous(),
-        KeyCode::Char('l') | KeyCode::Right => app.segments.open(),
-        KeyCode::Char('h') | KeyCode::Left => app.segments.close(),
-        KeyCode::Enter => app.segments.toggle_selected(),
+        KeyCode::Char('j') | KeyCode::Down => app.next(),
+        KeyCode::Char('k') | KeyCode::Up => app.previous(),
+        KeyCode::Char('l') | KeyCode::Right => app.open(),
+        KeyCode::Char('h') | KeyCode::Left => app.close(),
+        KeyCode::Enter => app.toggle_selected(),
         KeyCode::Char('g') => app.go_top(),
         KeyCode::Char('G') => app.go_bottom(),
 
