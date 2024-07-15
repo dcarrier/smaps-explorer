@@ -8,6 +8,7 @@ use ratatui::{
     widgets::{Block, BorderType, Padding, Paragraph, Widget, Wrap},
     Frame,
 };
+use std::rc::Rc;
 use tui_logger::{TuiLoggerLevelOutput, TuiLoggerWidget, TuiWidgetState};
 use tui_tree_widget::{Tree, TreeItem};
 
@@ -22,38 +23,51 @@ impl<'a> MemoryMapWidget<'a> {
     pub fn new(app: &'a App) -> Self {
         Self { app }
     }
+
+    fn render_memory_widget(self, layout: &Rc<[Rect]>, frame: &mut Frame) {
+        let memory_layout_constraints: Vec<Constraint> = match self.app.selected_identifiers() {
+            Some(indices) => {
+                // Size 1 means we are at a root element
+                if indices.len() == 1 {
+                    let outer_key = indices[0].0;
+                    let group_len = self.app.memory_maps[outer_key].len();
+                    vec![Constraint::Percentage(100 / group_len as u16); group_len]
+                } else {
+                    vec![Constraint::Percentage(100)]
+                }
+            }
+            None => vec![Constraint::Percentage(100)],
+        };
+
+        let memory_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(memory_layout_constraints.clone())
+            .split(layout[0]);
+
+        let indices = match self.app.selected_identifiers() {
+            Some(v) => v,
+            None => {
+                //app.state.select(vec![(0, 0)]);
+                vec![(0, 0)]
+            }
+        };
+
+        if indices.len() == 1 {
+            let outer_key = indices[0].0;
+            let mut inner_key = indices[0].1;
+            let memory_maps_len = self.app.memory_maps[outer_key].len();
+            for _ in 0..memory_maps_len {
+                frame.render_widget(self, memory_layout[inner_key]);
+                inner_key += 1;
+            }
+        } else {
+            frame.render_widget(self, memory_layout[0]);
+        }
+    }
 }
 
 impl<'a> Widget for MemoryMapWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // TODO: Not correct to unwrap and assume last() here, but I wanna
-        // make sure that everything is still working.
-
-        // If the length of the selected_segments is '1' then we assume that
-        // we are at a top level element. This means that we would like to display
-        // all children elements in the widget. Otherwise we will only display the child element.
-
-        /*
-        let segments = match self.app.get_selected_segments() {
-            Some(v) => v,
-            // TODO: If there are no segments then we should probably display a helpful
-            // no segments screen or similar. Leaving this for now.
-            None => return,
-            Paragraph::new(Span::styled(
-                format!("no memorymap"),
-                Style::default().fg(Color::White).bold(),
-            ))
-            .block(
-                Block::bordered()
-                    .border_style(Style::default())
-                    .padding(Padding::new(0, 0, area.height / 2, 0)),
-            )
-            .alignment(Alignment::Center),
-        };
-        */
-
-        // Right now I am doing the same thing for both cases. But that doesn't actually make any sense.
-        // I think this whole thing needs to move somewhere else. Maybe render function.
         let indices = match self.app.selected_identifiers() {
             Some(v) => match v.last() {
                 Some(v) => v.clone(),
@@ -94,50 +108,59 @@ impl<'a> InfoWidget<'a> {
     pub fn new(app: &'a App) -> Self {
         Self { app }
     }
+
+    fn render_info_widget(self, layout: &Rc<[Rect]>, frame: &mut Frame) {
+        frame.render_widget(self, layout[0]);
+    }
 }
 
 impl<'a> Widget for InfoWidget<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // TODO: Not correct to unwrap and assume last() here, but I wanna
-        // make sure that everything is still working.
-
-        // This should use selected_identifier variable that I have implemented on
-        // MemoryWidget. I think we should move this up into self.app so all widgets can have
-        // access.
-        let widget = match self.app.selected_segments().unwrap().last() {
-            Some(v) => {
-                let mut text = vec![
-                    Line::from(format!("start_addr: {:#x}", v.address.0)),
-                    Line::from(format!("end_addr: {:#x}", v.address.1)),
-                    Line::from(format!("permissions: {}", v.perms.as_str())),
-                    Line::from(format!("offset: {}", v.offset)),
-                    Line::from(format!("dev: {}:{}", v.dev.0, v.dev.1)),
-                    Line::from(format!("inode: {}", v.inode)),
-                    Line::from(format!(
-                        "vm_flags: {}",
-                        v.extension
-                            .vm_flags
-                            .iter_names()
-                            .map(|v| { v.0.to_string() })
-                            .collect::<Vec<String>>()
-                            .join(" ")
-                    )),
-                ];
-                let mut extensions: Vec<Line> = Vec::new();
-                for k in v.extension.map.keys().sorted() {
-                    let v = v.extension.map[k];
-                    extensions.push(Line::from(format!("{}: {}", &k.to_lowercase(), &v)));
+        let widget = match self.app.selected_segments() {
+            Some(s) => match s.last() {
+                Some(v) => {
+                    let mut text = vec![
+                        Line::from(format!("start_addr: {:#x}", v.address.0)),
+                        Line::from(format!("end_addr: {:#x}", v.address.1)),
+                        Line::from(format!("permissions: {}", v.perms.as_str())),
+                        Line::from(format!("offset: {}", v.offset)),
+                        Line::from(format!("dev: {}:{}", v.dev.0, v.dev.1)),
+                        Line::from(format!("inode: {}", v.inode)),
+                        Line::from(format!(
+                            "vm_flags: {}",
+                            v.extension
+                                .vm_flags
+                                .iter_names()
+                                .map(|v| { v.0.to_string() })
+                                .collect::<Vec<String>>()
+                                .join(" ")
+                        )),
+                    ];
+                    let mut extensions: Vec<Line> = Vec::new();
+                    for k in v.extension.map.keys().sorted() {
+                        let v = v.extension.map[k];
+                        extensions.push(Line::from(format!("{}: {}", &k.to_lowercase(), &v)));
+                    }
+                    text.extend(extensions);
+                    Paragraph::new(text.clone())
+                        .alignment(Alignment::Center)
+                        .block(
+                            Block::bordered()
+                                .border_type(BorderType::Double)
+                                .title("Info")
+                                .title_alignment(Alignment::Center),
+                        )
                 }
-                text.extend(extensions);
-                Paragraph::new(text.clone())
+                None => Paragraph::new(format!("no info"))
                     .alignment(Alignment::Center)
                     .block(
                         Block::bordered()
                             .border_type(BorderType::Double)
                             .title("Info")
                             .title_alignment(Alignment::Center),
-                    )
-            }
+                    ),
+            },
+            // TODO: not in love with the duplicated None case
             None => Paragraph::new(format!("no info"))
                 .alignment(Alignment::Center)
                 .block(
@@ -192,7 +215,13 @@ impl<'a> ListWidget<'a> {
         Self { app }
     }
 
-    fn render_list(&mut self, area: Rect, buf: &mut Buffer) {
+    fn render_list_widget(&mut self, layout: &Rc<[Rect]>, frame: &mut Frame) {
+        frame.render_widget(self, layout[1]);
+    }
+}
+
+impl<'a> Widget for &mut ListWidget<'a> {
+    fn render(self, area: Rect, buf: &mut Buffer) {
         let mut branches = Vec::new();
         for (i, branch) in self.app.memory_maps.iter().enumerate() {
             let mut children = Vec::with_capacity(branch.len() - 1);
@@ -227,12 +256,6 @@ impl<'a> ListWidget<'a> {
     }
 }
 
-impl<'a> Widget for &mut ListWidget<'a> {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        self.render_list(area, buf)
-    }
-}
-
 /// Renders the user interface widgets.
 pub fn render(app: &mut App, frame: &mut Frame) {
     let layout = Layout::default()
@@ -240,58 +263,20 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         .constraints(vec![Constraint::Percentage(75), Constraint::Percentage(25)])
         .split(frame.size());
 
-    // TODO: this logic should really go somewhere else
-    // TODO: this no longer supports debug mode. Need to figure that out.
-    let memory_layout_constraints: Vec<Constraint> = match app.selected_identifiers() {
-        Some(indices) => {
-            // Size 1 means we are at a root element
-            if indices.len() == 1 {
-                let outer_key = indices[0].0;
-                let group_len = app.memory_maps[outer_key].len();
-                vec![Constraint::Percentage(100 / group_len as u16); group_len]
-            } else {
-                vec![Constraint::Percentage(100)]
-            }
-        }
-        None => vec![Constraint::Percentage(100)],
-    };
-
-    let memory_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(memory_layout_constraints.clone())
-        .split(layout[0]);
-
     let sidebar_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(layout[1]);
 
-    let indices = match app.selected_identifiers() {
-        Some(v) => v,
-        None => {
-            //app.state.select(vec![(0, 0)]);
-            vec![(0, 0)]
-        }
-    };
-
-    let memory_widget = MemoryMapWidget::new(app);
+    // Immutable Borrows
     let info_widget = InfoWidget::new(app);
+    let memory_map_widget = MemoryMapWidget::new(app);
+    // TODO need to re-add log functionality
     let log_widget = LogWidget::new(app);
+    memory_map_widget.render_memory_widget(&layout, frame);
+    info_widget.render_info_widget(&sidebar_layout, frame);
 
-    if indices.len() == 1 {
-        let outer_key = indices[0].0;
-        let mut inner_key = indices[0].1;
-        let memory_maps_len = app.memory_maps[outer_key].len();
-        for _ in 0..memory_maps_len {
-            frame.render_widget(memory_widget, memory_layout[inner_key]);
-            inner_key += 1;
-        }
-    } else {
-        frame.render_widget(memory_widget, memory_layout[0]);
-    }
-
-    frame.render_widget(info_widget, sidebar_layout[0]);
-
-    let mut segment_list_widget = ListWidget::new(app);
-    frame.render_widget(&mut segment_list_widget, sidebar_layout[1]);
+    // Mutable Borrows
+    let mut list_widget = ListWidget::new(app);
+    list_widget.render_list_widget(&sidebar_layout, frame);
 }
