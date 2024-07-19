@@ -277,13 +277,13 @@ pub fn render(app: &mut App, frame: &mut Frame) {
 
     // Immutable Borrows
     let info_widget = InfoWidget::new(app);
-    let mut memory_map_widget = MemoryMapWidget::new(app);
     // TODO need to re-add log functionality
     let log_widget = LogWidget::new(app);
-    memory_map_widget.render_memory_widget(&layout, frame);
     info_widget.render_info_widget(&sidebar_layout, frame);
 
     // Mutable Borrows
+    let mut memory_map_widget = MemoryMapWidget::new(app);
+    memory_map_widget.render_memory_widget(&layout, frame);
     let mut list_widget = ListWidget::new(app);
     list_widget.render_list_widget(&sidebar_layout, frame);
 }
