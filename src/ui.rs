@@ -17,14 +17,21 @@ const SELECTED_STYLE_FG: Color = tailwind::BLUE.c300;
 #[derive(Clone, Copy)]
 pub struct MemoryMapWidget<'a> {
     pub app: &'a App,
+    child_idx: Option<usize>,
 }
 
 impl<'a> MemoryMapWidget<'a> {
     pub fn new(app: &'a App) -> Self {
-        Self { app }
+        Self {
+            app,
+            // child_idx represents the next child we should render when we have selected
+            // a root element. This allows us to render the proper metadata on the multi
+            // memorymap overview screen.
+            child_idx: None,
+        }
     }
 
-    fn render_memory_widget(self, layout: &Rc<[Rect]>, frame: &mut Frame) {
+    fn render_memory_widget(mut self, layout: &Rc<[Rect]>, frame: &mut Frame) {
         let memory_layout_constraints: Vec<Constraint> = match self.app.selected_identifiers() {
             Some(indices) => {
                 // Size 1 means we are at a root element
@@ -47,7 +54,6 @@ impl<'a> MemoryMapWidget<'a> {
         let indices = match self.app.selected_identifiers() {
             Some(v) => v,
             None => {
-                //app.state.select(vec![(0, 0)]);
                 vec![(0, 0)]
             }
         };
@@ -57,6 +63,7 @@ impl<'a> MemoryMapWidget<'a> {
             let mut inner_key = indices[0].1;
             let memory_maps_len = self.app.memory_maps[outer_key].len();
             for _ in 0..memory_maps_len {
+                self.child_idx = Some(inner_key);
                 frame.render_widget(self, memory_layout[inner_key]);
                 inner_key += 1;
             }
@@ -77,7 +84,7 @@ impl<'a> Widget for MemoryMapWidget<'a> {
         };
 
         let outer_key = indices.0;
-        let inner_key = indices.1;
+        let inner_key = self.child_idx.unwrap_or(indices.1);
         let v = self.app.memory_maps[outer_key][inner_key].clone();
         let widget = Paragraph::new(Span::styled(
             format!("{}", app::mmpath_to_string(&v.pathname),),
@@ -270,7 +277,7 @@ pub fn render(app: &mut App, frame: &mut Frame) {
 
     // Immutable Borrows
     let info_widget = InfoWidget::new(app);
-    let memory_map_widget = MemoryMapWidget::new(app);
+    let mut memory_map_widget = MemoryMapWidget::new(app);
     // TODO need to re-add log functionality
     let log_widget = LogWidget::new(app);
     memory_map_widget.render_memory_widget(&layout, frame);
