@@ -191,6 +191,10 @@ impl<'a> LogWidget<'a> {
     pub fn new(app: &'a App) -> Self {
         Self { app }
     }
+
+    fn render_log_widget(self, layout: &Rc<[Rect]>, frame: &mut Frame) {
+        frame.render_widget(self, layout[1]);
+    }
 }
 
 impl<'a> Widget for LogWidget<'a> {
@@ -265,25 +269,34 @@ impl<'a> Widget for &mut ListWidget<'a> {
 
 /// Renders the user interface widgets.
 pub fn render(app: &mut App, frame: &mut Frame) {
-    let layout = Layout::default()
+    let base_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(vec![Constraint::Percentage(75), Constraint::Percentage(25)])
         .split(frame.size());
 
+    let main_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(vec![Constraint::Percentage(75), Constraint::Percentage(25)])
+        .split(base_layout[0]);
+
     let sidebar_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(layout[1]);
+        .split(base_layout[1]);
 
     // Immutable Borrows
     let info_widget = InfoWidget::new(app);
-    // TODO need to re-add log functionality
-    let log_widget = LogWidget::new(app);
     info_widget.render_info_widget(&sidebar_layout, frame);
+
+    // TODO need to re-add log functionality
+    if app.debug {
+        let log_widget = LogWidget::new(app);
+        log_widget.render_log_widget(&main_layout, frame);
+    }
 
     // Mutable Borrows
     let mut memory_map_widget = MemoryMapWidget::new(app);
-    memory_map_widget.render_memory_widget(&layout, frame);
+    memory_map_widget.render_memory_widget(&main_layout, frame);
     let mut list_widget = ListWidget::new(app);
     list_widget.render_list_widget(&sidebar_layout, frame);
 }
