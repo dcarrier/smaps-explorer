@@ -13,7 +13,7 @@ pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
 #[derive(Debug)]
 pub struct App {
     running: bool,
-    debug: bool,
+    pub debug: bool,
     pub memory_maps: MemoryMapMatrix,
     pub state: TreeState<(usize, usize)>,
 }
