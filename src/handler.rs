@@ -15,13 +15,14 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
             }
         }
         //KeyCode::Char('h') | KeyCode::Left => app.segments.unselect(),
-        KeyCode::Char('j') | KeyCode::Down => app.next(),
-        KeyCode::Char('k') | KeyCode::Up => app.previous(),
-        KeyCode::Char('l') | KeyCode::Right => app.open(),
-        KeyCode::Char('h') | KeyCode::Left => app.close(),
-        KeyCode::Enter => app.toggle_selected(),
-        KeyCode::Char('g') => app.go_top(),
-        KeyCode::Char('G') => app.go_bottom(),
+        KeyCode::Char('j') | KeyCode::Down => app.list_widget.next(),
+        KeyCode::Char('k') | KeyCode::Up => app.list_widget.previous(),
+        KeyCode::Char('l') | KeyCode::Right => app.list_widget.open(),
+        KeyCode::Char('h') | KeyCode::Left => app.list_widget.close(),
+        KeyCode::Enter => app.list_widget.toggle_selected(),
+        KeyCode::Char('g') => app.list_widget.go_top(),
+        KeyCode::Char('G') => app.list_widget.go_bottom(),
+        KeyCode::Tab => app.switch_pane(),
 
         // Other handlers you could add here.
         _ => {}

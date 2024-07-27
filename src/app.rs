@@ -1,25 +1,33 @@
+use crate::ui::{InfoWidget, ListWidget, LogWidget, MemoryMapWidget};
 use procfs::process::MMapPath;
 use procfs::process::MMapPath::*;
 use procfs::process::MemoryMap;
 use procfs::ProcError;
 use std::error;
-use tui_tree_widget::TreeState;
+use std::rc::Rc;
 
-type MemoryMapMatrix = Vec<Vec<MemoryMap>>;
-
-/// Application result type.
+pub type MemoryMapMatrix = Vec<Vec<MemoryMap>>;
 pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
-/// Application.
+
 #[derive(Debug)]
 pub struct App {
     running: bool,
     pub debug: bool,
-    pub memory_maps: MemoryMapMatrix,
-    pub state: TreeState<(usize, usize)>,
+    pub selected_pane: AppSelectedPane,
+    pub memory_maps: Rc<MemoryMapMatrix>,
+    pub memory_map_widget: MemoryMapWidget,
+    pub list_widget: ListWidget,
+    pub info_widget: InfoWidget,
+    pub log_widget: LogWidget,
+}
+
+#[derive(Debug)]
+pub enum AppSelectedPane {
+    Segment,
+    Path,
 }
 
 impl App {
-    /// Constructs a new instance of [`App`].
     pub fn new(pid: i32, debug: bool) -> AppResult<Self> {
         let process = procfs::process::Process::new(pid)?;
         let memory_maps = match smaps_rollup(&process)? {
@@ -27,18 +35,20 @@ impl App {
                 let mut rollup_prefix = vec![vec![v.clone()]];
                 let memory_maps = smaps(&process)?;
                 rollup_prefix.extend(memory_maps);
-                rollup_prefix
+                Rc::new(rollup_prefix)
             }
-            None => smaps(&process)?,
+            None => Rc::new(smaps(&process)?),
         };
-        let mut state = TreeState::default();
-        state.select(vec![(0, 0)]);
 
         Ok(Self {
             running: true,
             debug,
-            memory_maps,
-            state,
+            selected_pane: AppSelectedPane::Path,
+            memory_maps: Rc::clone(&memory_maps),
+            memory_map_widget: MemoryMapWidget::new(Rc::clone(&memory_maps)),
+            list_widget: ListWidget::new(Rc::clone(&memory_maps)),
+            info_widget: InfoWidget::new(),
+            log_widget: LogWidget::new(),
         })
     }
 
@@ -54,53 +64,11 @@ impl App {
         self.running
     }
 
-    pub fn go_top(&mut self) {
-        self.state.select_first();
-    }
-
-    pub fn go_bottom(&mut self) {
-        self.state.select_last();
-    }
-
-    pub fn next(&mut self) {
-        self.state.key_down();
-    }
-
-    pub fn previous(&mut self) {
-        self.state.key_up();
-    }
-
-    pub fn open(&mut self) {
-        self.state.key_right();
-    }
-
-    pub fn close(&mut self) {
-        self.state.key_left();
-    }
-
-    pub fn toggle_selected(&mut self) {
-        self.state.toggle_selected();
-    }
-
-    pub fn selected_segments(&self) -> Option<Vec<MemoryMap>> {
-        let indices = self.selected_identifiers();
-        match indices {
-            Some(v) => Some(Vec::from_iter(
-                v.iter()
-                    .map(|item| self.memory_maps[item.0][item.1].clone())
-                    .collect::<Vec<MemoryMap>>(),
-            )),
-            None => None,
+    pub fn switch_pane(&mut self) {
+        match self.selected_pane {
+            AppSelectedPane::Segment => self.selected_pane = AppSelectedPane::Path,
+            AppSelectedPane::Path => self.selected_pane = AppSelectedPane::Segment,
         }
-    }
-
-    pub fn selected_identifiers(&self) -> Option<Vec<(usize, usize)>> {
-        let indices = self.state.selected();
-        if indices.len() == 0 {
-            return None;
-        }
-
-        return Some(indices.to_vec());
     }
 }
 
@@ -108,6 +76,7 @@ fn smaps_rollup(process: &procfs::process::Process) -> Result<Option<MemoryMap>,
     let mut rollup = process.smaps_rollup()?;
     Ok(rollup.memory_map_rollup.0.pop())
 }
+
 fn smaps(process: &procfs::process::Process) -> Result<MemoryMapMatrix, ProcError> {
     let maps = process.smaps()?.0;
 
