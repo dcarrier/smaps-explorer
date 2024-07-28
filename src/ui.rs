@@ -18,9 +18,8 @@ const SELECTED_STYLE_FG: Color = tailwind::BLUE.c300;
 #[derive(Clone, Debug)]
 pub struct MemoryMapWidget {
     memory_maps: Rc<MemoryMapMatrix>,
-    child_idx: Option<usize>,
     selected_identifier: Option<(usize, usize)>,
-    table_state: TableState,
+    state: TableState,
     is_active_pane: bool,
 }
 
@@ -28,12 +27,8 @@ impl MemoryMapWidget {
     pub fn new(memory_map_matrix: Rc<MemoryMapMatrix>) -> Self {
         Self {
             memory_maps: memory_map_matrix,
-            // child_idx represents the next child we should render when we have selected
-            // a root element. This allows us to render the proper metadata on the multi
-            // memorymap overview screen.
-            child_idx: None,
             selected_identifier: None,
-            table_state: TableState::default().with_selected(0),
+            state: TableState::default().with_selected(0),
             is_active_pane: false,
         }
     }
@@ -60,6 +55,34 @@ impl MemoryMapWidget {
         }
     }
 
+    pub fn next(&mut self) {
+        match self.state.selected() {
+            Some(v) => {
+                // TODO: I am not sure this is correct: (default 0,0)
+                let (outer, _) = self.selected_identifier.unwrap_or((0, 0));
+                let idx = (v + 1) % self.memory_maps[outer].len();
+                self.state.select(Some(idx));
+            }
+            None => (),
+        };
+    }
+
+    pub fn previous(&mut self) {
+        match self.state.selected() {
+            Some(v) => {
+                // TODO: I am not sure this is correct: (default 0,0)
+                let (outer, _) = self.selected_identifier.unwrap_or((0, 0));
+                let idx = if v == 0 {
+                    self.memory_maps[outer].len() - 1
+                } else {
+                    v - 1
+                };
+                self.state.select(Some(idx));
+            }
+            None => (),
+        };
+    }
+
     fn selected_identifier(&mut self, id: Option<(usize, usize)>) {
         self.selected_identifier = id;
     }
@@ -73,7 +96,7 @@ impl<'a> Widget for &mut MemoryMapWidget {
         };
 
         let outer_key = indices.0;
-        let inner_key = self.child_idx.unwrap_or(indices.1);
+        let inner_key = indices.1;
 
         if inner_key == 0 {
             // TODO: Messing around with visualizing a table if at a top level.
@@ -115,7 +138,7 @@ impl<'a> Widget for &mut MemoryMapWidget {
                 .highlight_style(Style::new().light_yellow())
                 .header(Row::new(vec!["Path", "Percentage", "Start", "End"]));
 
-            StatefulWidget::render(table, area, buf, &mut self.table_state)
+            StatefulWidget::render(table, area, buf, &mut self.state)
             // // //
         } else {
             let v = self.memory_maps[outer_key][inner_key].clone();
