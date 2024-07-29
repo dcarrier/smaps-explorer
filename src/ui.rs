@@ -1,4 +1,4 @@
-use crate::app::{self, mmpath_to_string, App, AppSelectedPane, MemoryMapMatrix};
+use crate::app::{self, mmpath_to_string, App, MemoryMapMatrix};
 use itertools::Itertools;
 use log::LevelFilter;
 use procfs::process::MemoryMap;
@@ -16,14 +16,14 @@ use tui_tree_widget::{Tree, TreeItem, TreeState};
 const SELECTED_STYLE_FG: Color = tailwind::BLUE.c300;
 
 #[derive(Clone, Debug)]
-pub struct MemoryMapWidget {
+pub struct SegmentListWidget {
     memory_maps: Rc<MemoryMapMatrix>,
     selected_identifier: Option<(usize, usize)>,
     state: TableState,
     is_active_pane: bool,
 }
 
-impl MemoryMapWidget {
+impl SegmentListWidget {
     pub fn new(memory_map_matrix: Rc<MemoryMapMatrix>) -> Self {
         Self {
             memory_maps: memory_map_matrix,
@@ -48,11 +48,8 @@ impl MemoryMapWidget {
         frame.render_widget(self, memory_layout[0]);
     }
 
-    fn is_active_pane(&mut self, pane: &AppSelectedPane) {
-        match pane {
-            AppSelectedPane::Segment => self.is_active_pane = true,
-            _ => self.is_active_pane = false,
-        }
+    pub fn is_active_pane(&mut self, active: bool) {
+        self.is_active_pane = active;
     }
 
     pub fn next(&mut self) {
@@ -83,12 +80,34 @@ impl MemoryMapWidget {
         };
     }
 
+    pub fn go_top(&mut self) {
+        self.reset_select();
+    }
+
+    pub fn go_bottom(&mut self) {
+        let (outer, _) = self.selected_identifier.unwrap_or((0, 0));
+        let idx = self.memory_maps[outer].len() - 1;
+        self.state.select(Some(idx));
+    }
+
+    pub fn reset_select(&mut self) {
+        self.state.select(Some(0));
+    }
+
     fn selected_identifier(&mut self, id: Option<(usize, usize)>) {
         self.selected_identifier = id;
     }
+
+    fn selected_segment(&self) -> Option<MemoryMap> {
+        // TODO: I am not sure if default 0's is the correct thing
+        // to do.
+        let (outer, _) = self.selected_identifier.unwrap_or((0, 0));
+        let inner = self.state.selected().unwrap_or(0);
+        Some(self.memory_maps[outer][inner].clone())
+    }
 }
 
-impl<'a> Widget for &mut MemoryMapWidget {
+impl<'a> Widget for &mut SegmentListWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let indices = match self.selected_identifier {
             Some(v) => v.clone(),
@@ -99,7 +118,6 @@ impl<'a> Widget for &mut MemoryMapWidget {
         let inner_key = indices.1;
 
         if inner_key == 0 {
-            // TODO: Messing around with visualizing a table if at a top level.
             let mut rows = Vec::new();
             let total_size: f32 = self.memory_maps[outer_key]
                 .iter()
@@ -116,15 +134,15 @@ impl<'a> Widget for &mut MemoryMapWidget {
                         * 100.0
                 );
                 let start_addr = format!("{:#x}", mm.address.0);
-                let end_addr = format!("{:#x}", mm.address.0);
+                let end_addr = format!("{:#x}", mm.address.1);
                 rows.push(Row::new(vec![path_name, perc_sz, start_addr, end_addr]));
             }
 
             let widths = vec![
-                Constraint::Percentage(40),
-                Constraint::Length(10),
-                Constraint::Length(14),
-                Constraint::Length(14),
+                Constraint::Percentage(25),
+                Constraint::Length(25),
+                Constraint::Length(25),
+                Constraint::Length(25),
             ];
 
             let table = Table::new(rows, widths)
@@ -166,13 +184,13 @@ impl<'a> Widget for &mut MemoryMapWidget {
 
 #[derive(Clone, Debug)]
 pub struct InfoWidget {
-    selected_segments: Option<Vec<MemoryMap>>,
+    selected_segment: Option<MemoryMap>,
 }
 
 impl InfoWidget {
     pub fn new() -> Self {
         Self {
-            selected_segments: None,
+            selected_segment: None,
         }
     }
 
@@ -180,70 +198,57 @@ impl InfoWidget {
         &mut self,
         layout: Rect,
         frame: &mut Frame,
-        selected_segments: Option<Vec<MemoryMap>>,
+        selected_segment: Option<MemoryMap>,
     ) {
-        self.selected_segments(selected_segments);
+        self.selected_segments(selected_segment);
         frame.render_widget(self, layout);
     }
 
-    fn selected_segments(&mut self, selected_segments: Option<Vec<MemoryMap>>) {
-        self.selected_segments = selected_segments
+    fn selected_segments(&mut self, selected_segments: Option<MemoryMap>) {
+        self.selected_segment = selected_segments
     }
 }
 
 impl Widget for &mut InfoWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         // TODO: I don't love this clone, needs to be a better way to do this.
-        match self.selected_segments.clone() {
-            Some(s) => match s.last() {
-                Some(v) => {
-                    let mut rows: Vec<Row> = vec![
-                        Row::new(["start_addr".to_string(), format!("{:#x}", v.address.0)]),
-                        Row::new(["end_addr".to_string(), format!("{:#x}", v.address.1)]),
-                        Row::new(["permissions".to_string(), format!("{}", v.perms.as_str())]),
-                        Row::new(["offset".to_string(), format!("{}", v.offset)]),
-                        Row::new(["dev".to_string(), format!("{}:{}", v.dev.0, v.dev.1)]),
-                        Row::new(["inode".to_string(), format!("{}", v.inode)]),
-                        Row::new([
-                            "vm_flags".to_string(),
-                            format!(
-                                "{}",
-                                v.extension
-                                    .vm_flags
-                                    .iter_names()
-                                    .map(|v| { v.0.to_string() })
-                                    .collect::<Vec<String>>()
-                                    .join(" ")
-                            ),
-                        ]),
-                    ];
-                    for k in v.extension.map.keys().sorted() {
-                        let v = v.extension.map[k];
-                        rows.push(Row::new([
-                            format!("{}", &k.to_lowercase()),
-                            format!("{}", &v),
-                        ]));
-                    }
-                    let widths = vec![Constraint::Percentage(50); 2];
-                    let widget = Table::new(rows, widths).block(
-                        Block::bordered()
-                            .title("Info")
-                            .title_alignment(Alignment::Center),
-                    );
-                    Widget::render(widget, area, buf)
+        match self.selected_segment.clone() {
+            Some(v) => {
+                let mut rows: Vec<Row> = vec![
+                    Row::new(["start_addr".to_string(), format!("{:#x}", v.address.0)]),
+                    Row::new(["end_addr".to_string(), format!("{:#x}", v.address.1)]),
+                    Row::new(["permissions".to_string(), format!("{}", v.perms.as_str())]),
+                    Row::new(["offset".to_string(), format!("{}", v.offset)]),
+                    Row::new(["dev".to_string(), format!("{}:{}", v.dev.0, v.dev.1)]),
+                    Row::new(["inode".to_string(), format!("{}", v.inode)]),
+                    Row::new([
+                        "vm_flags".to_string(),
+                        format!(
+                            "{}",
+                            v.extension
+                                .vm_flags
+                                .iter_names()
+                                .map(|v| { v.0.to_string() })
+                                .collect::<Vec<String>>()
+                                .join(" ")
+                        ),
+                    ]),
+                ];
+                for k in v.extension.map.keys().sorted() {
+                    let v = v.extension.map[k];
+                    rows.push(Row::new([
+                        format!("{}", &k.to_lowercase()),
+                        format!("{}", &v),
+                    ]));
                 }
-                None => {
-                    let widget = Paragraph::new(format!("no info"))
-                        .alignment(Alignment::Center)
-                        .block(
-                            Block::bordered()
-                                .title("Info")
-                                .title_alignment(Alignment::Center),
-                        );
-                    Widget::render(widget, area, buf)
-                }
-            },
-            // TODO: not in love with the duplicated None case
+                let widths = vec![Constraint::Percentage(50); 2];
+                let widget = Table::new(rows, widths).block(
+                    Block::bordered()
+                        .title("Info")
+                        .title_alignment(Alignment::Center),
+                );
+                Widget::render(widget, area, buf)
+            }
             None => {
                 let widget = Paragraph::new(format!("no info"))
                     .alignment(Alignment::Center)
@@ -291,13 +296,13 @@ impl Widget for LogWidget {
 }
 
 #[derive(Debug)]
-pub struct ListWidget {
+pub struct PathListWidget {
     memory_maps: Rc<MemoryMapMatrix>,
     pub state: TreeState<(usize, usize)>,
     is_active_pane: bool,
 }
 
-impl ListWidget {
+impl PathListWidget {
     pub fn new(memory_map_matrix: Rc<MemoryMapMatrix>) -> Self {
         let mut state = TreeState::default();
         state.select(vec![(0, 0)]);
@@ -305,7 +310,7 @@ impl ListWidget {
         Self {
             memory_maps: memory_map_matrix,
             state,
-            is_active_pane: false,
+            is_active_pane: true,
         }
     }
 
@@ -313,11 +318,8 @@ impl ListWidget {
         frame.render_widget(self, layout);
     }
 
-    fn is_active_pane(&mut self, pane: &AppSelectedPane) {
-        match pane {
-            AppSelectedPane::Path => self.is_active_pane = true,
-            _ => self.is_active_pane = false,
-        }
+    pub fn is_active_pane(&mut self, active: bool) {
+        self.is_active_pane = active;
     }
 
     pub fn go_top(&mut self) {
@@ -366,12 +368,12 @@ impl ListWidget {
     }
 }
 
-impl Widget for &mut ListWidget {
+impl Widget for &mut PathListWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let mut branches = Vec::new();
         for (i, branch) in self.memory_maps.iter().enumerate() {
             let parent_name = format!(
-                "{:#x} {}",
+                "{:#x}  {}",
                 branch[0].address.0,
                 app::mmpath_to_string(&branch[0].pathname)
             );
@@ -419,8 +421,8 @@ pub fn render(app: &mut App, frame: &mut Frame) {
             .direction(Direction::Vertical)
             .constraints(vec![
                 Constraint::Percentage(40),
-                Constraint::Percentage(50),
-                Constraint::Percentage(10),
+                Constraint::Percentage(40),
+                Constraint::Percentage(20),
             ])
     } else {
         Layout::default()
@@ -435,26 +437,23 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         .split(base_layout[1]);
 
     // Set active pane for this render
-    app.list_widget.is_active_pane(&app.selected_pane);
-    app.memory_map_widget.is_active_pane(&app.selected_pane);
 
-    // TODO: testing out some dependency injection from App
-    let selected_segments = app.list_widget.selected_segments();
-    let indices = app.list_widget.selected_identifiers();
+    let selected_segment = app.segment_list_widget.selected_segment();
+    let indices = app.path_list_widget.selected_identifiers();
     if app.debug {
         app.info_widget
-            .render_info_widget(sidebar_layout[0], frame, selected_segments);
-        app.memory_map_widget
+            .render_info_widget(sidebar_layout[0], frame, selected_segment);
+        app.segment_list_widget
             .render_memory_widget(main_layout[0], frame, indices);
         app.log_widget.render_log_widget(main_layout[1], frame);
-        // TODO: this is broken for non debug use cases
-        app.list_widget.render_list_widget(main_layout[2], frame);
+        app.path_list_widget
+            .render_list_widget(main_layout[2], frame);
     } else {
         app.info_widget
-            .render_info_widget(sidebar_layout[0], frame, selected_segments);
-        app.memory_map_widget
+            .render_info_widget(sidebar_layout[0], frame, selected_segment);
+        app.segment_list_widget
             .render_memory_widget(main_layout[0], frame, indices);
-        // TODO: this is broken for non debug use cases
-        app.list_widget.render_list_widget(main_layout[1], frame);
+        app.path_list_widget
+            .render_list_widget(main_layout[1], frame);
     }
 }

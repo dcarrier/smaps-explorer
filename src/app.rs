@@ -1,4 +1,4 @@
-use crate::ui::{InfoWidget, ListWidget, LogWidget, MemoryMapWidget};
+use crate::ui::{InfoWidget, LogWidget, PathListWidget, SegmentListWidget};
 use procfs::process::MMapPath;
 use procfs::process::MMapPath::*;
 use procfs::process::MemoryMap;
@@ -15,8 +15,8 @@ pub struct App {
     pub debug: bool,
     pub selected_pane: AppSelectedPane,
     pub memory_maps: Rc<MemoryMapMatrix>,
-    pub memory_map_widget: MemoryMapWidget,
-    pub list_widget: ListWidget,
+    pub segment_list_widget: SegmentListWidget,
+    pub path_list_widget: PathListWidget,
     pub info_widget: InfoWidget,
     pub log_widget: LogWidget,
 }
@@ -45,8 +45,8 @@ impl App {
             debug,
             selected_pane: AppSelectedPane::Path,
             memory_maps: Rc::clone(&memory_maps),
-            memory_map_widget: MemoryMapWidget::new(Rc::clone(&memory_maps)),
-            list_widget: ListWidget::new(Rc::clone(&memory_maps)),
+            segment_list_widget: SegmentListWidget::new(Rc::clone(&memory_maps)),
+            path_list_widget: PathListWidget::new(Rc::clone(&memory_maps)),
             info_widget: InfoWidget::new(),
             log_widget: LogWidget::new(),
         })
@@ -66,8 +66,20 @@ impl App {
 
     pub fn switch_pane(&mut self) {
         match self.selected_pane {
-            AppSelectedPane::Segment => self.selected_pane = AppSelectedPane::Path,
-            AppSelectedPane::Path => self.selected_pane = AppSelectedPane::Segment,
+            AppSelectedPane::Segment => {
+                // Import to reset the Segment selection so you don't go
+                // out of bounds on a smaller segment as you navigate the
+                // Path pane.
+                self.segment_list_widget.is_active_pane(false);
+                self.segment_list_widget.reset_select();
+                self.selected_pane = AppSelectedPane::Path;
+                self.path_list_widget.is_active_pane(true);
+            }
+            AppSelectedPane::Path => {
+                self.path_list_widget.is_active_pane(false);
+                self.selected_pane = AppSelectedPane::Segment;
+                self.segment_list_widget.is_active_pane(true);
+            }
         }
     }
 }
