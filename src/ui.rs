@@ -204,8 +204,8 @@ impl InfoWidget {
         frame.render_widget(self, layout);
     }
 
-    fn selected_segments(&mut self, selected_segments: Option<MemoryMap>) {
-        self.selected_segment = selected_segments
+    fn selected_segments(&mut self, selected_segment: Option<MemoryMap>) {
+        self.selected_segment = selected_segment
     }
 }
 
@@ -409,7 +409,6 @@ fn selected_pane_color(active_pane: &bool) -> Style {
     }
 }
 
-/// Renders the user interface widgets.
 pub fn render(app: &mut App, frame: &mut Frame) {
     let base_layout = Layout::default()
         .direction(Direction::Horizontal)

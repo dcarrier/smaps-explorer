@@ -114,17 +114,16 @@ fn smaps(process: &procfs::process::Process) -> Result<MemoryMapMatrix, ProcErro
 
 pub fn mmpath_to_string(name: &MMapPath) -> String {
     match name {
-        // TODO fix this unwrap
-        Path(x) => x.to_str().unwrap().to_string(),
-        Heap => "heap".to_string(),
-        Stack => "stack".to_string(),
-        TStack(x) => format!("thread stack: {0}", x),
-        Vdso => "vdso".to_string(),
-        Vvar => "vvar".to_string(),
-        Vsyscall => "vsyscall".to_string(),
-        Rollup => "rollup".to_string(),
-        Anonymous => "anonymous".to_string(),
-        Vsys(x) => format!("vsys: {0}", x),
-        Other(x) => format!("{0}", x),
+        Path(x) => x.to_string_lossy().into_owned(),
+        Heap => "heap".into(),
+        Stack => "stack".into(),
+        TStack(x) => format!("thread stack: {0}", x).into(),
+        Vdso => "vdso".into(),
+        Vvar => "vvar".into(),
+        Vsyscall => "vsyscall".into(),
+        Rollup => "rollup".into(),
+        Anonymous => "anonymous".into(),
+        Vsys(x) => format!("vsys: {0}", x).into(),
+        Other(x) => format!("{0}", x).into(),
     }
 }
