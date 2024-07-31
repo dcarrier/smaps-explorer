@@ -47,8 +47,8 @@ impl App {
             memory_maps: Rc::clone(&memory_maps),
             segment_list_widget: SegmentListWidget::new(Rc::clone(&memory_maps)),
             path_list_widget: PathListWidget::new(Rc::clone(&memory_maps)),
-            info_widget: InfoWidget::new(),
-            log_widget: LogWidget::new(),
+            info_widget: InfoWidget::default(),
+            log_widget: LogWidget::default(),
         })
     }
 
@@ -117,13 +117,13 @@ pub fn mmpath_to_string(name: &MMapPath) -> String {
         Path(x) => x.to_string_lossy().into_owned(),
         Heap => "heap".into(),
         Stack => "stack".into(),
-        TStack(x) => format!("thread stack: {0}", x).into(),
+        TStack(x) => format!("thread stack: {0}", x),
         Vdso => "vdso".into(),
         Vvar => "vvar".into(),
         Vsyscall => "vsyscall".into(),
         Rollup => "rollup".into(),
         Anonymous => "anonymous".into(),
-        Vsys(x) => format!("vsys: {0}", x).into(),
-        Other(x) => format!("{0}", x).into(),
+        Vsys(x) => format!("vsys: {0}", x),
+        Other(x) => x.to_string(),
     }
 }

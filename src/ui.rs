@@ -53,30 +53,24 @@ impl SegmentListWidget {
     }
 
     pub fn next(&mut self) {
-        match self.state.selected() {
-            Some(v) => {
-                // TODO: I am not sure this is correct: (default 0,0)
-                let (outer, _) = self.selected_identifier.unwrap_or((0, 0));
-                let idx = (v + 1) % self.memory_maps[outer].len();
-                self.state.select(Some(idx));
-            }
-            None => (),
+        if let Some(v) = self.state.selected() {
+            // TODO: I am not sure this is correct: (default 0,0)
+            let (outer, _) = self.selected_identifier.unwrap_or((0, 0));
+            let idx = (v + 1) % self.memory_maps[outer].len();
+            self.state.select(Some(idx));
         };
     }
 
     pub fn previous(&mut self) {
-        match self.state.selected() {
-            Some(v) => {
-                // TODO: I am not sure this is correct: (default 0,0)
-                let (outer, _) = self.selected_identifier.unwrap_or((0, 0));
-                let idx = if v == 0 {
-                    self.memory_maps[outer].len() - 1
-                } else {
-                    v - 1
-                };
-                self.state.select(Some(idx));
-            }
-            None => (),
+        if let Some(v) = self.state.selected() {
+            // TODO: I am not sure this is correct: (default 0,0)
+            let (outer, _) = self.selected_identifier.unwrap_or((0, 0));
+            let idx = if v == 0 {
+                self.memory_maps[outer].len() - 1
+            } else {
+                v - 1
+            };
+            self.state.select(Some(idx));
         };
     }
 
@@ -107,12 +101,9 @@ impl SegmentListWidget {
     }
 }
 
-impl<'a> Widget for &mut SegmentListWidget {
+impl Widget for &mut SegmentListWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let indices = match self.selected_identifier {
-            Some(v) => v.clone(),
-            None => (0, 0),
-        };
+        let indices = self.selected_identifier.unwrap_or((0, 0));
 
         let outer_key = indices.0;
         let inner_key = indices.1;
@@ -161,7 +152,7 @@ impl<'a> Widget for &mut SegmentListWidget {
         } else {
             let v = self.memory_maps[outer_key][inner_key].clone();
             let widget = Paragraph::new(vec![
-                Line::from(format!("{}", v.perms.as_str())),
+                Line::from(v.perms.as_str().to_string()),
                 // TODO: not great that I need to know the exact key here (with casing)
                 Line::from(format!("{}", v.extension.map.get("Size").unwrap_or(&0))),
             ])
@@ -185,6 +176,12 @@ impl<'a> Widget for &mut SegmentListWidget {
 #[derive(Clone, Debug)]
 pub struct InfoWidget {
     selected_segment: Option<MemoryMap>,
+}
+
+impl Default for InfoWidget {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl InfoWidget {
@@ -217,29 +214,24 @@ impl Widget for &mut InfoWidget {
                 let mut rows: Vec<Row> = vec![
                     Row::new(["start_addr".to_string(), format!("{:#x}", v.address.0)]),
                     Row::new(["end_addr".to_string(), format!("{:#x}", v.address.1)]),
-                    Row::new(["permissions".to_string(), format!("{}", v.perms.as_str())]),
+                    Row::new(["permissions".to_string(), v.perms.as_str().to_string()]),
                     Row::new(["offset".to_string(), format!("{}", v.offset)]),
                     Row::new(["dev".to_string(), format!("{}:{}", v.dev.0, v.dev.1)]),
                     Row::new(["inode".to_string(), format!("{}", v.inode)]),
                     Row::new([
                         "vm_flags".to_string(),
-                        format!(
-                            "{}",
-                            v.extension
-                                .vm_flags
-                                .iter_names()
-                                .map(|v| { v.0.to_string() })
-                                .collect::<Vec<String>>()
-                                .join(" ")
-                        ),
+                        v.extension
+                            .vm_flags
+                            .iter_names()
+                            .map(|v| v.0.to_string())
+                            .collect::<Vec<String>>()
+                            .join(" ")
+                            .to_string(),
                     ]),
                 ];
                 for k in v.extension.map.keys().sorted() {
                     let v = v.extension.map[k];
-                    rows.push(Row::new([
-                        format!("{}", &k.to_lowercase()),
-                        format!("{}", &v),
-                    ]));
+                    rows.push(Row::new([k.to_lowercase().to_string(), v.to_string()]));
                 }
                 let widths = vec![Constraint::Percentage(50); 2];
                 let widget = Table::new(rows, widths).block(
@@ -250,7 +242,7 @@ impl Widget for &mut InfoWidget {
                 Widget::render(widget, area, buf)
             }
             None => {
-                let widget = Paragraph::new(format!("no info"))
+                let widget = Paragraph::new("no info".to_string())
                     .alignment(Alignment::Center)
                     .block(
                         Block::bordered()
@@ -265,6 +257,12 @@ impl Widget for &mut InfoWidget {
 
 #[derive(Clone, Copy, Debug)]
 pub struct LogWidget {}
+
+impl Default for LogWidget {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl LogWidget {
     pub fn new() -> Self {
@@ -352,19 +350,16 @@ impl PathListWidget {
 
     pub fn selected_identifiers(&self) -> Option<(usize, usize)> {
         let indices = self.state.selected();
-        if indices.len() == 0 {
+        if indices.is_empty() {
             return None;
         }
 
-        return Some(indices[0]);
+        Some(indices[0])
     }
 
     pub fn selected_segments(&self) -> Option<Vec<MemoryMap>> {
-        let indices = self.selected_identifiers();
-        match indices {
-            Some(v) => Some(self.memory_maps[v.0].clone()),
-            None => None,
-        }
+        self.selected_identifiers()
+            .map(|v| self.memory_maps[v.0].clone())
     }
 }
 
