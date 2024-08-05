@@ -1,4 +1,4 @@
-use crate::ui::{InfoWidget, LogWidget, PathListWidget, SegmentListWidget};
+use crate::ui::{InfoWidget, LegendWidget, LogWidget, PathListWidget, SegmentListWidget};
 use procfs::process::MMapPath;
 use procfs::process::MMapPath::*;
 use procfs::process::MemoryMap;
@@ -19,6 +19,7 @@ pub struct App {
     pub path_list_widget: PathListWidget,
     pub info_widget: InfoWidget,
     pub log_widget: LogWidget,
+    pub legend_widget: LegendWidget,
 }
 
 #[derive(Debug)]
@@ -49,6 +50,7 @@ impl App {
             path_list_widget: PathListWidget::new(Rc::clone(&memory_maps)),
             info_widget: InfoWidget::default(),
             log_widget: LogWidget::default(),
+            legend_widget: LegendWidget::default(),
         })
     }
 
@@ -70,15 +72,15 @@ impl App {
                 // Import to reset the Segment selection so you don't go
                 // out of bounds on a smaller segment as you navigate the
                 // Path pane.
-                self.segment_list_widget.is_active_pane(false);
+                self.segment_list_widget.active_pane(false);
                 self.segment_list_widget.reset_select();
                 self.selected_pane = AppSelectedPane::Path;
-                self.path_list_widget.is_active_pane(true);
+                self.path_list_widget.active_pane(true);
             }
             AppSelectedPane::Path => {
-                self.path_list_widget.is_active_pane(false);
+                self.path_list_widget.active_pane(false);
                 self.selected_pane = AppSelectedPane::Segment;
-                self.segment_list_widget.is_active_pane(true);
+                self.segment_list_widget.active_pane(true);
             }
         }
     }

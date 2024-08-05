@@ -6,7 +6,9 @@ use ratatui::style::palette::tailwind;
 use ratatui::{
     prelude::*,
     style::Style,
-    widgets::{Block, Padding, Paragraph, Row, Table, TableState, Widget, Wrap},
+    widgets::{
+        Block, BorderType, Borders, Padding, Paragraph, Row, Table, TableState, Widget, Wrap,
+    },
     Frame,
 };
 use std::rc::Rc;
@@ -20,7 +22,7 @@ pub struct SegmentListWidget {
     memory_maps: Rc<MemoryMapMatrix>,
     selected_identifier: Option<(usize, usize)>,
     state: TableState,
-    is_active_pane: bool,
+    active_pane: bool,
 }
 
 impl SegmentListWidget {
@@ -29,7 +31,7 @@ impl SegmentListWidget {
             memory_maps: memory_map_matrix,
             selected_identifier: None,
             state: TableState::default().with_selected(0),
-            is_active_pane: false,
+            active_pane: false,
         }
     }
 
@@ -48,8 +50,8 @@ impl SegmentListWidget {
         frame.render_widget(self, memory_layout[0]);
     }
 
-    pub fn is_active_pane(&mut self, active: bool) {
-        self.is_active_pane = active;
+    pub fn active_pane(&mut self, active: bool) {
+        self.active_pane = active;
     }
 
     pub fn next(&mut self) {
@@ -140,12 +142,14 @@ impl Widget for &mut SegmentListWidget {
                 .block(
                     Block::bordered()
                         .title_top("Segment")
-                        .title_style(selected_pane_color(&self.is_active_pane))
+                        .title_style(selected_pane_color(&self.active_pane))
                         .title_alignment(Alignment::Center)
-                        .border_style(selected_pane_color(&self.is_active_pane)),
+                        .border_style(selected_pane_color(&self.active_pane)),
                 )
                 .highlight_style(Style::new().light_yellow())
-                .header(Row::new(vec!["Path", "Percentage", "Start", "End"]));
+                .header(
+                    Row::new(vec!["Path", "Percentage", "Start", "End"]).style(Style::new().bold()),
+                );
 
             StatefulWidget::render(table, area, buf, &mut self.state)
             // // //
@@ -161,9 +165,9 @@ impl Widget for &mut SegmentListWidget {
                 Block::bordered()
                     .title_top(format!("{:#x}", v.address.0))
                     .title_bottom(format!("{:#x}", v.address.1))
-                    .title_style(selected_pane_color(&self.is_active_pane))
+                    .title_style(selected_pane_color(&self.active_pane))
                     .title_alignment(Alignment::Center)
-                    .border_style(selected_pane_color(&self.is_active_pane))
+                    .border_style(selected_pane_color(&self.active_pane))
                     .padding(Padding::new(0, 0, area.height / 2, 0)),
             )
             .alignment(Alignment::Center);
@@ -297,7 +301,7 @@ impl Widget for LogWidget {
 pub struct PathListWidget {
     memory_maps: Rc<MemoryMapMatrix>,
     pub state: TreeState<(usize, usize)>,
-    is_active_pane: bool,
+    active_pane: bool,
 }
 
 impl PathListWidget {
@@ -308,7 +312,7 @@ impl PathListWidget {
         Self {
             memory_maps: memory_map_matrix,
             state,
-            is_active_pane: true,
+            active_pane: true,
         }
     }
 
@@ -316,8 +320,8 @@ impl PathListWidget {
         frame.render_widget(self, layout);
     }
 
-    pub fn is_active_pane(&mut self, active: bool) {
-        self.is_active_pane = active;
+    pub fn active_pane(&mut self, active: bool) {
+        self.active_pane = active;
     }
 
     pub fn go_top(&mut self) {
@@ -334,14 +338,6 @@ impl PathListWidget {
 
     pub fn previous(&mut self) {
         self.state.key_up();
-    }
-
-    pub fn open(&mut self) {
-        self.state.key_right();
-    }
-
-    pub fn close(&mut self) {
-        self.state.key_left();
     }
 
     pub fn toggle_selected(&mut self) {
@@ -379,7 +375,7 @@ impl Widget for &mut PathListWidget {
         }
 
         let inner_block = Block::bordered()
-            .border_style(selected_pane_color(&self.is_active_pane))
+            .border_style(selected_pane_color(&self.active_pane))
             .title("Path")
             .title_alignment(Alignment::Center);
 
@@ -397,6 +393,31 @@ impl Widget for &mut PathListWidget {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LegendWidget {}
+
+impl LegendWidget {
+    fn render_legend_widget(self, layout: Rect, frame: &mut Frame) {
+        frame.render_widget(self, layout);
+    }
+}
+
+impl Widget for LegendWidget {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let text = Text::from(vec![Line::from(
+            "tab/enter - switch pane\t\t j - down\t\t k - up\t\t g - top\t\t G - bottom",
+        )]);
+        let widget = Paragraph::new(text)
+            .block(
+                Block::new()
+                    .borders(Borders::TOP)
+                    .border_type(BorderType::Double),
+            )
+            .centered();
+        Widget::render(widget, area, buf);
+    }
+}
+
 fn selected_pane_color(active_pane: &bool) -> Style {
     match active_pane {
         true => Style::default().fg(Color::Green),
@@ -405,10 +426,20 @@ fn selected_pane_color(active_pane: &bool) -> Style {
 }
 
 pub fn render(app: &mut App, frame: &mut Frame) {
+    // TODO: Horrible variable naming
+    let initial_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(vec![Constraint::Fill(1), Constraint::Length(3)])
+        .split(frame.size());
+
     let base_layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(vec![Constraint::Percentage(75), Constraint::Percentage(25)])
-        .split(frame.size());
+        .constraints(vec![
+            Constraint::Percentage(75),
+            Constraint::Percentage(25),
+            Constraint::Length(2),
+        ])
+        .split(initial_layout[0]);
 
     let main_layout = if app.debug {
         Layout::default()
@@ -416,12 +447,12 @@ pub fn render(app: &mut App, frame: &mut Frame) {
             .constraints(vec![
                 Constraint::Percentage(40),
                 Constraint::Percentage(40),
-                Constraint::Percentage(20),
+                Constraint::Fill(1),
             ])
     } else {
         Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
+            .constraints(vec![Constraint::Percentage(45), Constraint::Fill(1)])
     };
     let main_layout = main_layout.split(base_layout[0]);
 
@@ -430,7 +461,10 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         .constraints(vec![Constraint::Percentage(100)])
         .split(base_layout[1]);
 
-    // Set active pane for this render
+    let legend_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(vec![Constraint::Percentage(100)])
+        .split(initial_layout[1]);
 
     let selected_segment = app.segment_list_widget.selected_segment();
     let indices = app.path_list_widget.selected_identifiers();
@@ -442,6 +476,8 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         app.log_widget.render_log_widget(main_layout[1], frame);
         app.path_list_widget
             .render_list_widget(main_layout[2], frame);
+        app.legend_widget
+            .render_legend_widget(legend_layout[0], frame);
     } else {
         app.info_widget
             .render_info_widget(sidebar_layout[0], frame, selected_segment);
@@ -449,5 +485,7 @@ pub fn render(app: &mut App, frame: &mut Frame) {
             .render_memory_widget(main_layout[0], frame, indices);
         app.path_list_widget
             .render_list_widget(main_layout[1], frame);
+        app.legend_widget
+            .render_legend_widget(legend_layout[0], frame);
     }
 }

@@ -23,8 +23,6 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
             AppSelectedPane::Path => app.path_list_widget.previous(),
             AppSelectedPane::Segment => app.segment_list_widget.previous(),
         },
-        KeyCode::Char('l') | KeyCode::Right => app.path_list_widget.open(),
-        KeyCode::Char('h') | KeyCode::Left => app.path_list_widget.close(),
         KeyCode::Char('g') => match app.selected_pane {
             AppSelectedPane::Path => app.path_list_widget.go_top(),
             AppSelectedPane::Segment => app.segment_list_widget.go_top(),
