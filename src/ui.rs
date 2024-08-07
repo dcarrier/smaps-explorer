@@ -1,4 +1,5 @@
-use crate::app::{self, mmpath_to_string, App, MemoryMapMatrix};
+use crate::app::{self, App, MemoryMapMatrix};
+use humansize::{format_size, DECIMAL};
 use itertools::Itertools;
 use log::LevelFilter;
 use procfs::process::MemoryMap;
@@ -112,27 +113,21 @@ impl Widget for &mut SegmentListWidget {
 
         if inner_key == 0 {
             let mut rows = Vec::new();
-            let total_size: f32 = self.memory_maps[outer_key]
-                .iter()
-                .map(|v| *v.extension.map.get("Size").unwrap_or(&0) as f32)
-                .sum();
-
             for mm in self.memory_maps[outer_key].iter() {
-                let path_name = mmpath_to_string(&mm.pathname);
-                let perc_sz = format!(
-                    "{:.1}",
-                    // TODO: adding 1 because rollup does not have a total size. Fix this
-                    // f32 conversions feel messy here as well.
-                    (*mm.extension.map.get("Size").unwrap_or(&0) as f32) / (total_size + 1.0)
-                        * 100.0
-                );
+                let size = *mm.extension.map.get("Size").unwrap_or(&0);
+                let rss = *mm.extension.map.get("Rss").unwrap_or(&0);
                 let start_addr = format!("{:#x}", mm.address.0);
                 let end_addr = format!("{:#x}", mm.address.1);
-                rows.push(Row::new(vec![path_name, perc_sz, start_addr, end_addr]));
+                rows.push(Row::new(vec![
+                    start_addr,
+                    end_addr,
+                    format_size(size, DECIMAL),
+                    format_size(rss, DECIMAL),
+                ]));
             }
 
             let widths = vec![
-                Constraint::Percentage(25),
+                Constraint::Length(25),
                 Constraint::Length(25),
                 Constraint::Length(25),
                 Constraint::Length(25),
@@ -147,12 +142,9 @@ impl Widget for &mut SegmentListWidget {
                         .border_style(selected_pane_color(&self.active_pane)),
                 )
                 .highlight_style(Style::new().light_yellow())
-                .header(
-                    Row::new(vec!["Path", "Percentage", "Start", "End"]).style(Style::new().bold()),
-                );
+                .header(Row::new(vec!["Start", "End", "Size", "RSS"]).style(Style::new().bold()));
 
             StatefulWidget::render(table, area, buf, &mut self.state)
-            // // //
         } else {
             let v = self.memory_maps[outer_key][inner_key].clone();
             let widget = Paragraph::new(vec![
@@ -235,7 +227,10 @@ impl Widget for &mut InfoWidget {
                 ];
                 for k in v.extension.map.keys().sorted() {
                     let v = v.extension.map[k];
-                    rows.push(Row::new([k.to_lowercase().to_string(), v.to_string()]));
+                    rows.push(Row::new([
+                        k.to_lowercase().to_string(),
+                        format_size(v, DECIMAL),
+                    ]));
                 }
                 let widths = vec![Constraint::Percentage(50); 2];
                 let widget = Table::new(rows, widths).block(

@@ -14,3 +14,4 @@ procfs = "0.16.0"
 ratatui = "0.27.0"
 tui-logger = { git = "https://github.com/gin66/tui-logger", version = "0.11.2" }
 tui-tree-widget = "0.21.0"
+humansize = "2.1.3"
