@@ -2,17 +2,21 @@ use crate::app::{self, App, MemoryMapMatrix};
 use humansize::{format_size, DECIMAL};
 use itertools::Itertools;
 use log::LevelFilter;
+use nucleo::pattern::{CaseMatching, Normalization};
+use nucleo::{Config, Nucleo, Utf32String};
 use procfs::process::MemoryMap;
 use ratatui::style::palette::tailwind;
 use ratatui::{
     prelude::*,
     style::Style,
     widgets::{
-        Block, BorderType, Borders, Padding, Paragraph, Row, Table, TableState, Widget, Wrap,
+        Block, BorderType, Borders, Clear, Padding, Paragraph, Row, Table, TableState, Widget, Wrap,
     },
     Frame,
 };
 use std::rc::Rc;
+use std::sync::Arc;
+use std::thread::available_parallelism;
 use tui_logger::{TuiLoggerLevelOutput, TuiLoggerWidget, TuiWidgetState};
 use tui_tree_widget::{Tree, TreeItem, TreeState};
 
@@ -292,10 +296,12 @@ impl Widget for LogWidget {
     }
 }
 
-#[derive(Debug)]
 pub struct PathListWidget {
     memory_maps: Rc<MemoryMapMatrix>,
     pub state: TreeState<(usize, usize)>,
+    pub searching: bool,
+    pub searcher: Nucleo<(u64, String)>,
+    filter: String,
     active_pane: bool,
 }
 
@@ -303,20 +309,42 @@ impl PathListWidget {
     pub fn new(memory_map_matrix: Rc<MemoryMapMatrix>) -> Self {
         let mut state = TreeState::default();
         state.select(vec![(0, 0)]);
-
+        let num_threads = Some(available_parallelism().unwrap().get());
+        let mut searcher = Nucleo::new(Config::DEFAULT, Arc::new(|| {}), num_threads, 2);
+        for mm in memory_map_matrix.iter() {
+            let values = (mm[0].address.0, app::mmpath_to_string(&mm[0].pathname));
+            searcher.injector().push(values, |values, c| {
+                c[0] = Utf32String::Ascii(values.0.to_string().as_str().into());
+                c[1] = Utf32String::Ascii(values.1.to_string().as_str().into());
+            });
+        }
+        // Immediatly tick() so we paint the ui at startup.
+        searcher.tick(10);
         Self {
             memory_maps: memory_map_matrix,
             state,
+            searcher,
+            searching: false,
+            filter: String::new(),
             active_pane: true,
         }
     }
 
-    fn render_list_widget(&mut self, layout: Rect, frame: &mut Frame) {
+    fn render_list_widget(&mut self, layout: Rect, frame: &mut Frame, filter: String) {
+        self.filter(filter);
         frame.render_widget(self, layout);
+    }
+
+    fn filter(&mut self, input: String) {
+        self.filter = input;
     }
 
     pub fn active_pane(&mut self, active: bool) {
         self.active_pane = active;
+    }
+
+    pub fn searching_toggle(&mut self) {
+        self.searching = !self.searching;
     }
 
     pub fn go_top(&mut self) {
@@ -357,16 +385,22 @@ impl PathListWidget {
 impl Widget for &mut PathListWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let mut branches = Vec::new();
-        for (i, branch) in self.memory_maps.iter().enumerate() {
-            let parent_name = format!(
-                "{:#x}  {}",
-                branch[0].address.0,
-                app::mmpath_to_string(&branch[0].pathname)
-            );
-            // TODO: this probably doesnt need to be a TreeWidget as we are just
-            // at a single level now. Simpler with a ratatui::List i'd presume.
-            let tree_item = TreeItem::new((i, 0), parent_name, vec![]).unwrap();
-            branches.push(tree_item.clone())
+        self.searcher.pattern.reparse(
+            1,
+            &self.filter,
+            CaseMatching::Ignore,
+            Normalization::Never,
+            false,
+        );
+        for (i, item) in self
+            .searcher
+            .snapshot()
+            .matched_items(0..self.searcher.snapshot().matched_item_count())
+            .enumerate()
+        {
+            let path = format!("{:#x}  {}", item.data.0, item.data.1);
+            let tree_item = TreeItem::new((i, 0), path, vec![]).unwrap();
+            branches.push(tree_item.clone());
         }
 
         let inner_block = Block::bordered()
@@ -400,7 +434,7 @@ impl LegendWidget {
 impl Widget for LegendWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let text = Text::from(vec![Line::from(
-            "tab/enter - switch pane\t\t j - down\t\t k - up\t\t g - top\t\t G - bottom",
+            "tab/enter - switch pane\t\t j - down\t\t k - up\t\t g - top\t\t G - bottom\t\t / - filter path",
         )]);
         let widget = Paragraph::new(text)
             .block(
@@ -410,6 +444,33 @@ impl Widget for LegendWidget {
             )
             .centered();
         Widget::render(widget, area, buf);
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct PathFilterWidget {
+    pub filter: String,
+}
+
+impl PathFilterWidget {
+    fn render_path_filter_widget(&mut self, layout: Rect, frame: &mut Frame) {
+        frame.render_widget(self, layout);
+    }
+}
+
+impl Widget for &mut PathFilterWidget {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let popup_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(88), Constraint::Percentage(12)])
+            .split(area);
+        let term_block = Block::default()
+            .title("Search for Path")
+            .borders(Borders::ALL);
+        let term_text = Paragraph::new(self.filter.clone()).block(term_block);
+        // Important to Clear before painting a new widget on top of existing layout.
+        Clear.render(area, buf);
+        Widget::render(term_text, popup_chunks[1], buf);
     }
 }
 
@@ -469,8 +530,11 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         app.segment_list_widget
             .render_memory_widget(main_layout[0], frame, indices);
         app.log_widget.render_log_widget(main_layout[1], frame);
-        app.path_list_widget
-            .render_list_widget(main_layout[2], frame);
+        app.path_list_widget.render_list_widget(
+            main_layout[1],
+            frame,
+            app.path_filter_widget.filter.clone(),
+        );
         app.legend_widget
             .render_legend_widget(legend_layout[0], frame);
     } else {
@@ -478,9 +542,16 @@ pub fn render(app: &mut App, frame: &mut Frame) {
             .render_info_widget(sidebar_layout[0], frame, selected_segment);
         app.segment_list_widget
             .render_memory_widget(main_layout[0], frame, indices);
-        app.path_list_widget
-            .render_list_widget(main_layout[1], frame);
+        app.path_list_widget.render_list_widget(
+            main_layout[1],
+            frame,
+            app.path_filter_widget.filter.clone(),
+        );
         app.legend_widget
             .render_legend_widget(legend_layout[0], frame);
+        if app.path_list_widget.searching {
+            app.path_filter_widget
+                .render_path_filter_widget(main_layout[0], frame);
+        }
     }
 }

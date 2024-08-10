@@ -1,4 +1,6 @@
-use crate::ui::{InfoWidget, LegendWidget, LogWidget, PathListWidget, SegmentListWidget};
+use crate::ui::{
+    InfoWidget, LegendWidget, LogWidget, PathFilterWidget, PathListWidget, SegmentListWidget,
+};
 use procfs::process::MMapPath;
 use procfs::process::MMapPath::*;
 use procfs::process::MemoryMap;
@@ -9,7 +11,6 @@ use std::rc::Rc;
 pub type MemoryMapMatrix = Vec<Vec<MemoryMap>>;
 pub type AppResult<T> = std::result::Result<T, Box<dyn error::Error>>;
 
-#[derive(Debug)]
 pub struct App {
     running: bool,
     pub debug: bool,
@@ -17,6 +18,7 @@ pub struct App {
     pub memory_maps: Rc<MemoryMapMatrix>,
     pub segment_list_widget: SegmentListWidget,
     pub path_list_widget: PathListWidget,
+    pub path_filter_widget: PathFilterWidget,
     pub info_widget: InfoWidget,
     pub log_widget: LogWidget,
     pub legend_widget: LegendWidget,
@@ -48,6 +50,7 @@ impl App {
             memory_maps: Rc::clone(&memory_maps),
             segment_list_widget: SegmentListWidget::new(Rc::clone(&memory_maps)),
             path_list_widget: PathListWidget::new(Rc::clone(&memory_maps)),
+            path_filter_widget: PathFilterWidget::default(),
             info_widget: InfoWidget::default(),
             log_widget: LogWidget::default(),
             legend_widget: LegendWidget::default(),
@@ -55,7 +58,11 @@ impl App {
     }
 
     /// Handles the tick event of the terminal.
-    pub fn tick(&self) {}
+    pub fn tick(&mut self) {
+        // TODO: Need to tick on the searcher each time.
+        // Re-evaluate this timeout value.
+        self.path_list_widget.searcher.tick(10);
+    }
 
     /// Set running to false to quit the application.
     pub fn quit(&mut self) {
