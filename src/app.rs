@@ -1,5 +1,5 @@
 use crate::ui::{
-    InfoWidget, LegendWidget, LogWidget, PathFilterWidget, PathListWidget, SegmentListWidget,
+    InfoWidget, LegendWidget, LogWidget, PathFilterWidget, PathListWidget, SegmentTableWidget,
 };
 use procfs::process::MMapPath;
 use procfs::process::MMapPath::*;
@@ -16,7 +16,7 @@ pub struct App {
     pub debug: bool,
     pub selected_pane: AppSelectedPane,
     pub memory_maps: Rc<MemoryMapMatrix>,
-    pub segment_list_widget: SegmentListWidget,
+    pub segment_list_widget: SegmentTableWidget,
     pub path_list_widget: PathListWidget,
     pub path_filter_widget: PathFilterWidget,
     pub info_widget: InfoWidget,
@@ -48,7 +48,7 @@ impl App {
             debug,
             selected_pane: AppSelectedPane::Path,
             memory_maps: Rc::clone(&memory_maps),
-            segment_list_widget: SegmentListWidget::new(Rc::clone(&memory_maps)),
+            segment_list_widget: SegmentTableWidget::new(Rc::clone(&memory_maps)),
             path_list_widget: PathListWidget::new(Rc::clone(&memory_maps)),
             path_filter_widget: PathFilterWidget::default(),
             info_widget: InfoWidget::default(),

@@ -10,7 +10,8 @@ use ratatui::{
     prelude::*,
     style::Style,
     widgets::{
-        Block, BorderType, Borders, Clear, Padding, Paragraph, Row, Table, TableState, Widget, Wrap,
+        Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph, Row, Table,
+        TableState, Widget,
     },
     Frame,
 };
@@ -18,19 +19,18 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::thread::available_parallelism;
 use tui_logger::{TuiLoggerLevelOutput, TuiLoggerWidget, TuiWidgetState};
-use tui_tree_widget::{Tree, TreeItem, TreeState};
 
 const SELECTED_STYLE_FG: Color = tailwind::BLUE.c300;
 
 #[derive(Clone, Debug)]
-pub struct SegmentListWidget {
+pub struct SegmentTableWidget {
     memory_maps: Rc<MemoryMapMatrix>,
-    selected_identifier: Option<(usize, usize)>,
+    selected_identifier: Option<usize>,
     state: TableState,
     active_pane: bool,
 }
 
-impl SegmentListWidget {
+impl SegmentTableWidget {
     pub fn new(memory_map_matrix: Rc<MemoryMapMatrix>) -> Self {
         Self {
             memory_maps: memory_map_matrix,
@@ -44,7 +44,7 @@ impl SegmentListWidget {
         &mut self,
         layout: Rect,
         frame: &mut Frame,
-        selected_identifier: Option<(usize, usize)>,
+        selected_identifier: Option<usize>,
     ) {
         self.selected_identifier(selected_identifier);
         let memory_layout = Layout::default()
@@ -61,8 +61,8 @@ impl SegmentListWidget {
 
     pub fn next(&mut self) {
         if let Some(v) = self.state.selected() {
-            // TODO: I am not sure this is correct: (default 0,0)
-            let (outer, _) = self.selected_identifier.unwrap_or((0, 0));
+            // TODO: I am not sure this is correct: (default 0)
+            let outer = self.selected_identifier.unwrap_or(0);
             let idx = (v + 1) % self.memory_maps[outer].len();
             self.state.select(Some(idx));
         };
@@ -70,8 +70,8 @@ impl SegmentListWidget {
 
     pub fn previous(&mut self) {
         if let Some(v) = self.state.selected() {
-            // TODO: I am not sure this is correct: (default 0,0)
-            let (outer, _) = self.selected_identifier.unwrap_or((0, 0));
+            // TODO: I am not sure this is correct: (default 0)
+            let outer = self.selected_identifier.unwrap_or(0);
             let idx = if v == 0 {
                 self.memory_maps[outer].len() - 1
             } else {
@@ -86,7 +86,8 @@ impl SegmentListWidget {
     }
 
     pub fn go_bottom(&mut self) {
-        let (outer, _) = self.selected_identifier.unwrap_or((0, 0));
+        // TODO: I am not sure this is correct: (default 0)
+        let outer = self.selected_identifier.unwrap_or(0);
         let idx = self.memory_maps[outer].len() - 1;
         self.state.select(Some(idx));
     }
@@ -95,81 +96,55 @@ impl SegmentListWidget {
         self.state.select(Some(0));
     }
 
-    fn selected_identifier(&mut self, id: Option<(usize, usize)>) {
+    fn selected_identifier(&mut self, id: Option<usize>) {
         self.selected_identifier = id;
     }
 
     fn selected_segment(&self) -> Option<MemoryMap> {
-        // TODO: I am not sure if default 0's is the correct thing
-        // to do.
-        let (outer, _) = self.selected_identifier.unwrap_or((0, 0));
+        // TODO: I am not sure this is correct: (default 0)
+        let outer = self.selected_identifier.unwrap_or(0);
         let inner = self.state.selected().unwrap_or(0);
         Some(self.memory_maps[outer][inner].clone())
     }
 }
 
-impl Widget for &mut SegmentListWidget {
+impl Widget for &mut SegmentTableWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let indices = self.selected_identifier.unwrap_or((0, 0));
+        // TODO: I am not sure this is correct: (default 0)
+        let outer_key = self.selected_identifier.unwrap_or(0);
+        let mut rows = Vec::new();
+        for mm in self.memory_maps[outer_key].iter() {
+            let size = *mm.extension.map.get("Size").unwrap_or(&0);
+            let rss = *mm.extension.map.get("Rss").unwrap_or(&0);
+            let start_addr = format!("{:#x}", mm.address.0);
+            let end_addr = format!("{:#x}", mm.address.1);
+            rows.push(Row::new(vec![
+                start_addr,
+                end_addr,
+                format_size(size, DECIMAL),
+                format_size(rss, DECIMAL),
+            ]));
+        }
 
-        let outer_key = indices.0;
-        let inner_key = indices.1;
+        let widths = vec![
+            Constraint::Length(25),
+            Constraint::Length(25),
+            Constraint::Length(25),
+            Constraint::Length(25),
+        ];
 
-        if inner_key == 0 {
-            let mut rows = Vec::new();
-            for mm in self.memory_maps[outer_key].iter() {
-                let size = *mm.extension.map.get("Size").unwrap_or(&0);
-                let rss = *mm.extension.map.get("Rss").unwrap_or(&0);
-                let start_addr = format!("{:#x}", mm.address.0);
-                let end_addr = format!("{:#x}", mm.address.1);
-                rows.push(Row::new(vec![
-                    start_addr,
-                    end_addr,
-                    format_size(size, DECIMAL),
-                    format_size(rss, DECIMAL),
-                ]));
-            }
-
-            let widths = vec![
-                Constraint::Length(25),
-                Constraint::Length(25),
-                Constraint::Length(25),
-                Constraint::Length(25),
-            ];
-
-            let table = Table::new(rows, widths)
-                .block(
-                    Block::bordered()
-                        .title_top("Segment")
-                        .title_style(selected_pane_color(&self.active_pane))
-                        .title_alignment(Alignment::Center)
-                        .border_style(selected_pane_color(&self.active_pane)),
-                )
-                .highlight_style(Style::new().light_yellow())
-                .header(Row::new(vec!["Start", "End", "Size", "RSS"]).style(Style::new().bold()));
-
-            StatefulWidget::render(table, area, buf, &mut self.state)
-        } else {
-            let v = self.memory_maps[outer_key][inner_key].clone();
-            let widget = Paragraph::new(vec![
-                Line::from(v.perms.as_str().to_string()),
-                // TODO: not great that I need to know the exact key here (with casing)
-                Line::from(format!("{}", v.extension.map.get("Size").unwrap_or(&0))),
-            ])
-            .wrap(Wrap { trim: true })
+        let table = Table::new(rows, widths)
             .block(
                 Block::bordered()
-                    .title_top(format!("{:#x}", v.address.0))
-                    .title_bottom(format!("{:#x}", v.address.1))
+                    .title_top("Segment")
                     .title_style(selected_pane_color(&self.active_pane))
                     .title_alignment(Alignment::Center)
-                    .border_style(selected_pane_color(&self.active_pane))
-                    .padding(Padding::new(0, 0, area.height / 2, 0)),
+                    .border_style(selected_pane_color(&self.active_pane)),
             )
-            .alignment(Alignment::Center);
+            .highlight_style(Style::new().light_yellow())
+            .header(Row::new(vec!["Start", "End", "Size", "RSS"]).style(Style::new().bold()));
 
-            widget.render(area, buf);
-        }
+        StatefulWidget::render(table, area, buf, &mut self.state)
     }
 }
 
@@ -298,7 +273,7 @@ impl Widget for LogWidget {
 
 pub struct PathListWidget {
     memory_maps: Rc<MemoryMapMatrix>,
-    pub state: TreeState<(usize, usize)>,
+    pub state: ListState,
     pub searching: bool,
     pub searcher: Nucleo<(u64, String)>,
     filter: String,
@@ -307,8 +282,8 @@ pub struct PathListWidget {
 
 impl PathListWidget {
     pub fn new(memory_map_matrix: Rc<MemoryMapMatrix>) -> Self {
-        let mut state = TreeState::default();
-        state.select(vec![(0, 0)]);
+        let mut state = ListState::default();
+        state.select(Some(0));
         let num_threads = Some(available_parallelism().unwrap().get());
         let mut searcher = Nucleo::new(Config::DEFAULT, Arc::new(|| {}), num_threads, 2);
         for mm in memory_map_matrix.iter() {
@@ -356,35 +331,26 @@ impl PathListWidget {
     }
 
     pub fn next(&mut self) {
-        self.state.key_down();
+        self.state.select_next();
     }
 
     pub fn previous(&mut self) {
-        self.state.key_up();
+        self.state.select_previous();
     }
 
-    pub fn toggle_selected(&mut self) {
-        self.state.toggle_selected();
-    }
-
-    pub fn selected_identifiers(&self) -> Option<(usize, usize)> {
-        let indices = self.state.selected();
-        if indices.is_empty() {
-            return None;
-        }
-
-        Some(indices[0])
+    pub fn selected_identifiers(&self) -> Option<usize> {
+        self.state.selected()
     }
 
     pub fn selected_segments(&self) -> Option<Vec<MemoryMap>> {
         self.selected_identifiers()
-            .map(|v| self.memory_maps[v.0].clone())
+            .map(|v| self.memory_maps[v].clone())
     }
 }
 
 impl Widget for &mut PathListWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let mut branches = Vec::new();
+        let mut paths = Vec::new();
         self.searcher.pattern.reparse(
             1,
             &self.filter,
@@ -392,15 +358,13 @@ impl Widget for &mut PathListWidget {
             Normalization::Never,
             false,
         );
-        for (i, item) in self
+        for item in self
             .searcher
             .snapshot()
             .matched_items(0..self.searcher.snapshot().matched_item_count())
-            .enumerate()
         {
-            let path = format!("{:#x}  {}", item.data.0, item.data.1);
-            let tree_item = TreeItem::new((i, 0), path, vec![]).unwrap();
-            branches.push(tree_item.clone());
+            let path_item = ListItem::new(format!("{:#x}  {}", item.data.0, item.data.1));
+            paths.push(path_item.clone());
         }
 
         let inner_block = Block::bordered()
@@ -408,15 +372,12 @@ impl Widget for &mut PathListWidget {
             .title("Path")
             .title_alignment(Alignment::Center);
 
-        let tree = Tree::new(&branches)
-            .unwrap()
-            .block(inner_block)
-            .highlight_style(
-                Style::default()
-                    .add_modifier(Modifier::BOLD)
-                    .add_modifier(Modifier::REVERSED)
-                    .fg(SELECTED_STYLE_FG),
-            );
+        let tree = List::new(paths).block(inner_block).highlight_style(
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .add_modifier(Modifier::REVERSED)
+                .fg(SELECTED_STYLE_FG),
+        );
 
         StatefulWidget::render(tree, area, buf, &mut self.state)
     }
