@@ -423,7 +423,7 @@ impl Widget for &mut PathFilterWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let popup_chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Percentage(88), Constraint::Percentage(12)])
+            .constraints([Constraint::Fill(1)])
             .split(area);
         let term_block = Block::default()
             .title("Search for Path")
@@ -431,7 +431,7 @@ impl Widget for &mut PathFilterWidget {
         let term_text = Paragraph::new(self.filter.clone()).block(term_block);
         // Important to Clear before painting a new widget on top of existing layout.
         Clear.render(area, buf);
-        Widget::render(term_text, popup_chunks[1], buf);
+        Widget::render(term_text, popup_chunks[0], buf);
     }
 }
 
