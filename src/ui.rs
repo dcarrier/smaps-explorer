@@ -372,14 +372,14 @@ impl Widget for &mut PathListWidget {
             .title("Path")
             .title_alignment(Alignment::Center);
 
-        let tree = List::new(paths).block(inner_block).highlight_style(
+        let list = List::new(paths).block(inner_block).highlight_style(
             Style::default()
                 .add_modifier(Modifier::BOLD)
                 .add_modifier(Modifier::REVERSED)
                 .fg(SELECTED_STYLE_FG),
         );
 
-        StatefulWidget::render(tree, area, buf, &mut self.state)
+        StatefulWidget::render(list, area, buf, &mut self.state)
     }
 }
 
