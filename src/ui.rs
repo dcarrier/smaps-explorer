@@ -61,7 +61,6 @@ impl SegmentTableWidget {
 
     pub fn next(&mut self) {
         if let Some(v) = self.state.selected() {
-            // TODO: I am not sure this is correct: (default 0)
             let outer = self.selected_identifier.unwrap_or(0);
             let idx = (v + 1) % self.memory_maps[outer].len();
             self.state.select(Some(idx));
@@ -70,7 +69,6 @@ impl SegmentTableWidget {
 
     pub fn previous(&mut self) {
         if let Some(v) = self.state.selected() {
-            // TODO: I am not sure this is correct: (default 0)
             let outer = self.selected_identifier.unwrap_or(0);
             let idx = if v == 0 {
                 self.memory_maps[outer].len() - 1
@@ -86,7 +84,6 @@ impl SegmentTableWidget {
     }
 
     pub fn go_bottom(&mut self) {
-        // TODO: I am not sure this is correct: (default 0)
         let outer = self.selected_identifier.unwrap_or(0);
         let idx = self.memory_maps[outer].len() - 1;
         self.state.select(Some(idx));
@@ -101,7 +98,6 @@ impl SegmentTableWidget {
     }
 
     fn selected_segment(&self) -> Option<MemoryMap> {
-        // TODO: I am not sure this is correct: (default 0)
         let outer = self.selected_identifier.unwrap_or(0);
         let inner = self.state.selected().unwrap_or(0);
         Some(self.memory_maps[outer][inner].clone())
@@ -110,7 +106,6 @@ impl SegmentTableWidget {
 
 impl Widget for &mut SegmentTableWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // TODO: I am not sure this is correct: (default 0)
         let outer_key = self.selected_identifier.unwrap_or(0);
         let mut rows = Vec::new();
         for mm in self.memory_maps[outer_key].iter() {
@@ -443,20 +438,24 @@ fn selected_pane_color(active_pane: &bool) -> Style {
 }
 
 pub fn render(app: &mut App, frame: &mut Frame) {
-    // TODO: Horrible variable naming
-    let initial_layout = Layout::default()
+    let base_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints(vec![Constraint::Fill(1), Constraint::Length(3)])
         .split(frame.size());
 
-    let base_layout = Layout::default()
+    let content_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(vec![
             Constraint::Percentage(75),
             Constraint::Percentage(25),
             Constraint::Length(2),
         ])
-        .split(initial_layout[0]);
+        .split(base_layout[0]);
+
+    let legend_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(vec![Constraint::Percentage(100)])
+        .split(base_layout[1]);
 
     let main_layout = if app.debug {
         Layout::default()
@@ -471,23 +470,18 @@ pub fn render(app: &mut App, frame: &mut Frame) {
             .direction(Direction::Vertical)
             .constraints(vec![Constraint::Percentage(45), Constraint::Fill(1)])
     };
-    let main_layout = main_layout.split(base_layout[0]);
+    let main_layout = main_layout.split(content_layout[0]);
 
-    let sidebar_layout = Layout::default()
+    let info_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints(vec![Constraint::Percentage(100)])
-        .split(base_layout[1]);
-
-    let legend_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(vec![Constraint::Percentage(100)])
-        .split(initial_layout[1]);
+        .split(content_layout[1]);
 
     let selected_segment = app.segment_list_widget.selected_segment();
     let indices = app.path_list_widget.selected_identifiers();
     if app.debug {
         app.info_widget
-            .render_info_widget(sidebar_layout[0], frame, selected_segment);
+            .render_info_widget(info_layout[0], frame, selected_segment);
         app.segment_list_widget
             .render_memory_widget(main_layout[0], frame, indices);
         app.log_widget.render_log_widget(main_layout[1], frame);
@@ -500,7 +494,7 @@ pub fn render(app: &mut App, frame: &mut Frame) {
             .render_legend_widget(legend_layout[0], frame);
     } else {
         app.info_widget
-            .render_info_widget(sidebar_layout[0], frame, selected_segment);
+            .render_info_widget(info_layout[0], frame, selected_segment);
         app.segment_list_widget
             .render_memory_widget(main_layout[0], frame, indices);
         app.path_list_widget.render_list_widget(
