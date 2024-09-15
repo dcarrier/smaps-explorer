@@ -5,9 +5,9 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
     // TODO: I don't like this top level match much, but I am hacking to get this to work
     // for now.
-    match app.path_list_widget.searching {
+    match app.path_list_widget.toggle {
         true => match key_event.code {
-            KeyCode::Char('/') | KeyCode::Enter => app.path_list_widget.searching_toggle(),
+            KeyCode::Char('/') | KeyCode::Enter => app.path_list_widget.toggle(),
             KeyCode::Backspace => {
                 app.path_filter_widget.filter.pop();
             }
@@ -41,7 +41,8 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
                 AppSelectedPane::Segment => app.segment_list_widget.go_bottom(),
             },
             KeyCode::Tab => app.switch_pane(),
-            KeyCode::Char('/') => app.path_list_widget.searching_toggle(),
+            KeyCode::Char('/') => app.path_list_widget.toggle(),
+            KeyCode::Char('h') => app.help_widget.toggle(),
             _ => {}
         },
     }

@@ -269,7 +269,7 @@ impl Widget for LogWidget {
 pub struct PathListWidget {
     memory_maps: Rc<MemoryMapMatrix>,
     pub state: ListState,
-    pub searching: bool,
+    pub toggle: bool,
     pub searcher: Nucleo<(u64, String)>,
     filter: String,
     active_pane: bool,
@@ -294,7 +294,7 @@ impl PathListWidget {
             memory_maps: memory_map_matrix,
             state,
             searcher,
-            searching: false,
+            toggle: false,
             filter: String::new(),
             active_pane: true,
         }
@@ -313,8 +313,8 @@ impl PathListWidget {
         self.active_pane = active;
     }
 
-    pub fn searching_toggle(&mut self) {
-        self.searching = !self.searching;
+    pub fn toggle(&mut self) {
+        self.toggle = !self.toggle;
     }
 
     pub fn go_top(&mut self) {
@@ -390,7 +390,7 @@ impl LegendWidget {
 impl Widget for LegendWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let text = Text::from(vec![Line::from(
-            "tab/enter - switch pane\t\t j - down\t\t k - up\t\t g - top\t\t G - bottom\t\t / - filter path",
+            "tab/enter - switch pane\t\t j - down\t\t k - up\t\t g - top\t\t G - bottom\t\t / - filter path\t\t h - help",
         )]);
         let widget = Paragraph::new(text)
             .block(
@@ -409,12 +409,12 @@ pub struct PathFilterWidget {
 }
 
 impl PathFilterWidget {
-    fn render_path_filter_widget(&mut self, layout: Rect, frame: &mut Frame) {
+    fn render_path_filter_widget(&self, layout: Rect, frame: &mut Frame) {
         frame.render_widget(self, layout);
     }
 }
 
-impl Widget for &mut PathFilterWidget {
+impl Widget for &PathFilterWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let popup_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -424,6 +424,37 @@ impl Widget for &mut PathFilterWidget {
             .title("Search for Path")
             .borders(Borders::ALL);
         let term_text = Paragraph::new(self.filter.clone()).block(term_block);
+        // Important to Clear before painting a new widget on top of existing layout.
+        Clear.render(area, buf);
+        Widget::render(term_text, popup_chunks[0], buf);
+    }
+}
+
+#[derive(Default)]
+pub struct HelpWidget {
+    pub toggle: bool,
+}
+
+impl HelpWidget {
+    fn render_help_widget(&self, layout: Rect, frame: &mut Frame) {
+        frame.render_widget(self, layout)
+    }
+
+    pub fn toggle(&mut self) {
+        self.toggle = !self.toggle;
+    }
+}
+
+impl Widget for &HelpWidget {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let popup_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Fill(1)])
+            .split(area);
+        let term_block = Block::default()
+            .title("Search for Path")
+            .borders(Borders::ALL);
+        let term_text = Paragraph::new("HELP!!!!").block(term_block);
         // Important to Clear before painting a new widget on top of existing layout.
         Clear.render(area, buf);
         Widget::render(term_text, popup_chunks[0], buf);
@@ -492,6 +523,13 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         );
         app.legend_widget
             .render_legend_widget(legend_layout[0], frame);
+        if app.path_list_widget.toggle {
+            app.path_filter_widget
+                .render_path_filter_widget(main_layout[0], frame);
+        }
+        if app.help_widget.toggle {
+            app.help_widget.render_help_widget(content_layout[0], frame);
+        }
     } else {
         app.info_widget
             .render_info_widget(info_layout[0], frame, selected_segment);
@@ -504,9 +542,12 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         );
         app.legend_widget
             .render_legend_widget(legend_layout[0], frame);
-        if app.path_list_widget.searching {
+        if app.path_list_widget.toggle {
             app.path_filter_widget
                 .render_path_filter_widget(main_layout[0], frame);
+        }
+        if app.help_widget.toggle {
+            app.help_widget.render_help_widget(content_layout[0], frame);
         }
     }
 }
