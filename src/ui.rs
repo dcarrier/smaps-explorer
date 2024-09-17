@@ -11,7 +11,7 @@ use ratatui::{
     style::Style,
     widgets::{
         Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph, Row, Table,
-        TableState, Widget,
+        TableState, Widget, Wrap,
     },
     Frame,
 };
@@ -452,9 +452,46 @@ impl Widget for &HelpWidget {
             .constraints([Constraint::Fill(1)])
             .split(area);
         let term_block = Block::default()
-            .title("Search for Path")
+            .title("SMAPS Explorer Help")
+            .title_alignment(Alignment::Center)
             .borders(Borders::ALL);
-        let term_text = Paragraph::new("HELP!!!!").block(term_block);
+        let term_text = Paragraph::new(Text::from(vec![
+            Line::from(vec![Span::raw("* start_addr: ").bold(), Span::raw("starting memory address in hex.")]),
+            Line::from(vec![Span::raw("* end_addr: ").bold(), Span::raw("ending memory address in hex.")]),
+            Line::from(vec![Span::raw("* permissions: ").bold(), Span::raw("is a set of permissions, r-read, w-write, x-execute, s=shared, p=private (copy on write)")]),
+            Line::from(vec![Span::raw("* offset: ").bold(), Span::raw("the offset into the mapping")]),
+            Line::from(vec![Span::raw("* dev: ").bold(), Span::raw("the device (major:minor)")]),
+            Line::from(vec![Span::raw("* inode: ").bold(), Span::raw("the inode on that device. 0 indicates that no inode is associated with the memory region, as the case would be with BSS (uninitialized data)")]),
+            Line::from(vec![Span::raw("* vm_flags: ").bold(), Span::raw("this member represents the kernel flags associated with the particular virtual memory area in two letter encoded manner. Press \"v\" to show flags.")]),
+            Line::from(vec![Span::raw("* anonhugepages: ").bold(), Span::raw("shows the amount of memory backed by transparent hugepage.")]),
+            Line::from(vec![Span::raw("* anonymous: ").bold(), Span::raw("shows the amount of memory that does not belong to any file. Even a mapping associated with a file may contain anonymous pages: when MAP_PRIVATE and a page is modified, the file page is replaced by a private anonymous copy.")]),
+            Line::from(vec![Span::raw("* filepmdmapped: ").bold(), Span::raw("page cache mapped into userspace with huge pages")]),
+            Line::from(vec![Span::raw("* ksm: ").bold().bold(), Span::raw("reports how many of the pages are KSM pages. Note that KSM-placed zeropages are not included, only actual KSM pages.")]),
+            Line::from(vec![Span::raw("* lazyfree: ").bold(), Span::raw("shows the amount of memory which is marked by madvise(MADV_FREE). The memory isn’t freed immediately with madvise(). It’s freed in memory pressure if the memory is clean. Please note that the printed value might be lower than the real value due to optimizations used in the current implementation. If this is not desirable please file a bug report.")]),
+            Line::from(vec![Span::raw("* locked: ").bold(), Span::raw("indicates whether the mapping is locked in memory or not.")]),
+            Line::from(vec![Span::raw("* private_clean: ").bold(), Span::raw("the number of clean private pages in the mapping")]),
+            Line::from(vec![Span::raw("* private_dirty: ").bold(), Span::raw("the number of dirty private pages in the mapping")]),
+            Line::from(vec![Span::raw("* private_hugetlb: ").bold(), Span::raw("show the amounts of memory backed by hugetlbfs page which is not counted in “RSS” or “PSS” field for historical reasons. And these are not included in {Shared,Private}_{Clean,Dirty} field.")]),
+            Line::from(vec![Span::raw("* pss: ").bold(), Span::raw("the process’ proportional share of this mapping. The count of pages it has in memory, where each page is divided by the number of processes sharing it.")]),
+            Line::from(vec![Span::raw("* pss_anon: ").bold(), Span::raw("proportional share of anonymous.")]),
+            Line::from(vec![Span::raw("* pss_dirty: ").bold(), Span::raw("proportional share of dirty.")]),
+            Line::from(vec![Span::raw("* pss_file: ").bold(), Span::raw("proporotional share of file.")]),
+            Line::from(vec![Span::raw("* pss_shmem: ").bold(), Span::raw("proportional share of of shmem.")]),
+            Line::from(vec![Span::raw("* referenced: ").bold(), Span::raw("indicates the amount of memory currently marked as referenced or accessed")]),
+            Line::from(vec![Span::raw("* rss: ").bold(), Span::raw("the amount of the mapping that is currently resident in RAM.")]),
+            Line::from(vec![Span::raw("* shared_clean: ").bold(), Span::raw("the number of clean shared pages in the mapping")]),
+            Line::from(vec![Span::raw("* shared_dirty: ").bold(), Span::raw("the number of dirty shared pages in the mapping")]),
+            Line::from(vec![Span::raw("* shared_hugetlb: ").bold(), Span::raw("show the amounts of memory backed by hugetlbfs page which is not counted in “RSS” or “PSS” field for historical reasons. And these are not included in {Shared,Private}_{Clean,Dirty} field.")]),
+            Line::from(vec![Span::raw("* shmempmdmapped: ").bold(), Span::raw("shows the amount of shared (shmem/tmpfs) memory backed by huge pages.")]),
+            Line::from(vec![Span::raw("* size: ").bold(), Span::raw("the size of the mapping")]),
+            Line::from(vec![Span::raw("* swap: ").bold(), Span::raw("shows how much would-be-anonymous memory is also used, but out on swap.")]),
+            Line::from(vec![Span::raw("* swappss: ").bold(), Span::raw("shows proportional swap share of this mapping. Unlike “Swap”, this does not take into account swapped out page of underlying shmem objects.")]),
+            Line::from(""),
+            Line::from(""),
+            Line::from(""),
+            Line::from(vec![Span::raw("source: ").bold(), Span::raw("https://www.kernel.org/doc/html/latest/filesystems/proc.html")]),
+        ])).wrap(Wrap{trim: true})
+        .block(term_block);
         // Important to Clear before painting a new widget on top of existing layout.
         Clear.render(area, buf);
         Widget::render(term_text, popup_chunks[0], buf);
