@@ -390,7 +390,7 @@ impl LegendWidget {
 impl Widget for LegendWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let text = Text::from(vec![Line::from(
-            "tab/enter - switch pane\t\t j - down\t\t k - up\t\t g - top\t\t G - bottom\t\t / - filter path\t\t h - help",
+            "tab/enter - switch pane\t | \t j - down\t | \t k - up\t | \t g - top\t | \t G - bottom\t | \t / - filter path\t | \t h - help\t | \t v - vm flags (while in help)",
         )]);
         let widget = Paragraph::new(text)
             .block(
@@ -432,7 +432,8 @@ impl Widget for &PathFilterWidget {
 
 #[derive(Default)]
 pub struct HelpWidget {
-    pub toggle: bool,
+    toggle: bool,
+    toggle_vm_flags: bool,
 }
 
 impl HelpWidget {
@@ -441,12 +442,27 @@ impl HelpWidget {
     }
 
     pub fn toggle(&mut self) {
+        // If HelpWidget is being disabled, then also disable vm_flags to avoid confusion.
+        if self.toggle {
+            self.toggle_vm_flags = false;
+        }
         self.toggle = !self.toggle;
+    }
+
+    pub fn toggle_vm_flags(&mut self) {
+        // If HelpWidget is not active, do not activate vm_flags screen to avoid confusion.
+        if !self.toggle {
+            return;
+        }
+        self.toggle_vm_flags = !self.toggle_vm_flags;
     }
 }
 
 impl Widget for &HelpWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        // Important to Clear before painting a new widget on top of existing layout.
+        Clear.render(area, buf);
+
         let popup_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Fill(1)])
@@ -455,46 +471,82 @@ impl Widget for &HelpWidget {
             .title("SMAPS Explorer Help")
             .title_alignment(Alignment::Center)
             .borders(Borders::ALL);
-        let term_text = Paragraph::new(Text::from(vec![
-            Line::from(vec![Span::raw("* start_addr: ").bold(), Span::raw("starting memory address in hex.")]),
-            Line::from(vec![Span::raw("* end_addr: ").bold(), Span::raw("ending memory address in hex.")]),
-            Line::from(vec![Span::raw("* permissions: ").bold(), Span::raw("is a set of permissions, r-read, w-write, x-execute, s=shared, p=private (copy on write)")]),
-            Line::from(vec![Span::raw("* offset: ").bold(), Span::raw("the offset into the mapping")]),
-            Line::from(vec![Span::raw("* dev: ").bold(), Span::raw("the device (major:minor)")]),
-            Line::from(vec![Span::raw("* inode: ").bold(), Span::raw("the inode on that device. 0 indicates that no inode is associated with the memory region, as the case would be with BSS (uninitialized data)")]),
-            Line::from(vec![Span::raw("* vm_flags: ").bold(), Span::raw("this member represents the kernel flags associated with the particular virtual memory area in two letter encoded manner. Press \"v\" to show flags.")]),
-            Line::from(vec![Span::raw("* anonhugepages: ").bold(), Span::raw("shows the amount of memory backed by transparent hugepage.")]),
-            Line::from(vec![Span::raw("* anonymous: ").bold(), Span::raw("shows the amount of memory that does not belong to any file. Even a mapping associated with a file may contain anonymous pages: when MAP_PRIVATE and a page is modified, the file page is replaced by a private anonymous copy.")]),
-            Line::from(vec![Span::raw("* filepmdmapped: ").bold(), Span::raw("page cache mapped into userspace with huge pages")]),
-            Line::from(vec![Span::raw("* ksm: ").bold().bold(), Span::raw("reports how many of the pages are KSM pages. Note that KSM-placed zeropages are not included, only actual KSM pages.")]),
-            Line::from(vec![Span::raw("* lazyfree: ").bold(), Span::raw("shows the amount of memory which is marked by madvise(MADV_FREE). The memory isn’t freed immediately with madvise(). It’s freed in memory pressure if the memory is clean. Please note that the printed value might be lower than the real value due to optimizations used in the current implementation. If this is not desirable please file a bug report.")]),
-            Line::from(vec![Span::raw("* locked: ").bold(), Span::raw("indicates whether the mapping is locked in memory or not.")]),
-            Line::from(vec![Span::raw("* private_clean: ").bold(), Span::raw("the number of clean private pages in the mapping")]),
-            Line::from(vec![Span::raw("* private_dirty: ").bold(), Span::raw("the number of dirty private pages in the mapping")]),
-            Line::from(vec![Span::raw("* private_hugetlb: ").bold(), Span::raw("show the amounts of memory backed by hugetlbfs page which is not counted in “RSS” or “PSS” field for historical reasons. And these are not included in {Shared,Private}_{Clean,Dirty} field.")]),
-            Line::from(vec![Span::raw("* pss: ").bold(), Span::raw("the process’ proportional share of this mapping. The count of pages it has in memory, where each page is divided by the number of processes sharing it.")]),
-            Line::from(vec![Span::raw("* pss_anon: ").bold(), Span::raw("proportional share of anonymous.")]),
-            Line::from(vec![Span::raw("* pss_dirty: ").bold(), Span::raw("proportional share of dirty.")]),
-            Line::from(vec![Span::raw("* pss_file: ").bold(), Span::raw("proporotional share of file.")]),
-            Line::from(vec![Span::raw("* pss_shmem: ").bold(), Span::raw("proportional share of of shmem.")]),
-            Line::from(vec![Span::raw("* referenced: ").bold(), Span::raw("indicates the amount of memory currently marked as referenced or accessed")]),
-            Line::from(vec![Span::raw("* rss: ").bold(), Span::raw("the amount of the mapping that is currently resident in RAM.")]),
-            Line::from(vec![Span::raw("* shared_clean: ").bold(), Span::raw("the number of clean shared pages in the mapping")]),
-            Line::from(vec![Span::raw("* shared_dirty: ").bold(), Span::raw("the number of dirty shared pages in the mapping")]),
-            Line::from(vec![Span::raw("* shared_hugetlb: ").bold(), Span::raw("show the amounts of memory backed by hugetlbfs page which is not counted in “RSS” or “PSS” field for historical reasons. And these are not included in {Shared,Private}_{Clean,Dirty} field.")]),
-            Line::from(vec![Span::raw("* shmempmdmapped: ").bold(), Span::raw("shows the amount of shared (shmem/tmpfs) memory backed by huge pages.")]),
-            Line::from(vec![Span::raw("* size: ").bold(), Span::raw("the size of the mapping")]),
-            Line::from(vec![Span::raw("* swap: ").bold(), Span::raw("shows how much would-be-anonymous memory is also used, but out on swap.")]),
-            Line::from(vec![Span::raw("* swappss: ").bold(), Span::raw("shows proportional swap share of this mapping. Unlike “Swap”, this does not take into account swapped out page of underlying shmem objects.")]),
-            Line::from(""),
-            Line::from(""),
-            Line::from(""),
-            Line::from(vec![Span::raw("source: ").bold(), Span::raw("https://www.kernel.org/doc/html/latest/filesystems/proc.html")]),
-        ])).wrap(Wrap{trim: true})
-        .block(term_block);
-        // Important to Clear before painting a new widget on top of existing layout.
-        Clear.render(area, buf);
-        Widget::render(term_text, popup_chunks[0], buf);
+        let rows: Vec<Row> = if self.toggle_vm_flags {
+            vec![
+                Row::new(vec!["rd", "readable"]),
+                Row::new(vec!["wr", "writeable"]),
+                Row::new(vec!["ex", "executable"]),
+                Row::new(vec!["sh", "shared"]),
+                Row::new(vec!["mr", "may read"]),
+                Row::new(vec!["mw", "may write"]),
+                Row::new(vec!["me", "may execute"]),
+                Row::new(vec!["ms", "may share"]),
+                Row::new(vec!["gd", "stack segment growns down"]),
+                Row::new(vec!["pf", "pure PFN range"]),
+                Row::new(vec!["dw", "disabled write to the mapped file"]),
+                Row::new(vec!["lo", "pages are locked in memory"]),
+                Row::new(vec!["io", "memory mapped I/O area"]),
+                Row::new(vec!["sr", "sequential read advise provided"]),
+                Row::new(vec!["rr", "random read advise provided"]),
+                Row::new(vec!["dc", "do not copy area on fork"]),
+                Row::new(vec!["de", "do not expand area on remapping"]),
+                Row::new(vec!["ac", "area is accountable"]),
+                Row::new(vec!["nr", "swap space is not reserved for the area"]),
+                Row::new(vec!["ht", "area uses huge tlb pages"]),
+                Row::new(vec!["sf", "synchronous page fault"]),
+                Row::new(vec!["ar", "architecture specific flag"]),
+                Row::new(vec!["wf", "wipe on fork"]),
+                Row::new(vec!["dd", "do not include area into core dump"]),
+                Row::new(vec!["sd", "soft dirty flag"]),
+                Row::new(vec!["mm", "mixed map area"]),
+                Row::new(vec!["hg", "huge page advise flag"]),
+                Row::new(vec!["nh", "no huge page advise flag"]),
+                Row::new(vec!["mg", "mergeable advise flag"]),
+                Row::new(vec!["bt", "arm64 BTI guarded page"]),
+                Row::new(vec!["mt", "arm64 MTE allocation tags are enabled"]),
+                Row::new(vec!["um", "userfaultfd missing tracking"]),
+                Row::new(vec!["uw", "userfaultfd wr-protect tracking"]),
+                Row::new(vec!["ss", "shadow stack page"]),
+                Row::new(vec!["sl", "sealed"]),
+            ]
+        } else {
+            vec![
+                Row::new(vec![Span::raw("* start_addr: ").bold(), Span::raw("starting memory address in hex.")]),
+                Row::new(vec![Span::raw("* end_addr: ").bold(), Span::raw("ending memory address in hex.")]),
+                Row::new(vec![Span::raw("* permissions: ").bold(), Span::raw("is a set of permissions, r-read, w-write, x-execute, s=shared, p=private (copy on write)")]),
+                Row::new(vec![Span::raw("* offset: ").bold(), Span::raw("the offset into the mapping")]),
+                Row::new(vec![Span::raw("* dev: ").bold(), Span::raw("the device (major:minor)")]),
+                Row::new(vec![Span::raw("* inode: ").bold(), Span::raw("the inode on that device. 0 indicates that no inode is associated with the memory region, as the case would be with BSS (uninitialized data)")]),
+                Row::new(vec![Span::raw("* vm_flags: ").bold(), Span::raw("this member represents the kernel flags associated with the particular virtual memory area in two letter encoded manner. Press \"v\" to show flags.")]),
+                Row::new(vec![Span::raw("* anonhugepages: ").bold(), Span::raw("shows the amount of memory backed by transparent hugepage.")]),
+                Row::new(vec![Span::raw("* anonymous: ").bold(), Span::raw("shows the amount of memory that does not belong to any file. Even a mapping associated with a file may contain anonymous pages: when MAP_PRIVATE and a page is modified, the file page is replaced by a private anonymous copy.")]),
+                Row::new(vec![Span::raw("* filepmdmapped: ").bold(), Span::raw("page cache mapped into userspace with huge pages")]),
+                Row::new(vec![Span::raw("* ksm: ").bold().bold(), Span::raw("reports how many of the pages are KSM pages. Note that KSM-placed zeropages are not included, only actual KSM pages.")]),
+                Row::new(vec![Span::raw("* lazyfree: ").bold(), Span::raw("shows the amount of memory which is marked by madvise(MADV_FREE). The memory isn’t freed immediately with madvise(). It’s freed in memory pressure if the memory is clean. Please note that the printed value might be lower than the real value due to optimizations used in the current implementation. If this is not desirable please file a bug report.")]),
+                Row::new(vec![Span::raw("* locked: ").bold(), Span::raw("indicates whether the mapping is locked in memory or not.")]),
+                Row::new(vec![Span::raw("* private_clean: ").bold(), Span::raw("the number of clean private pages in the mapping")]),
+                Row::new(vec![Span::raw("* private_dirty: ").bold(), Span::raw("the number of dirty private pages in the mapping")]),
+                Row::new(vec![Span::raw("* private_hugetlb: ").bold(), Span::raw("show the amounts of memory backed by hugetlbfs page which is not counted in “RSS” or “PSS” field for historical reasons. And these are not included in {Shared,Private}_{Clean,Dirty} field.")]),
+                Row::new(vec![Span::raw("* pss: ").bold(), Span::raw("the process’ proportional share of this mapping. The count of pages it has in memory, where each page is divided by the number of processes sharing it.")]),
+                Row::new(vec![Span::raw("* pss_anon: ").bold(), Span::raw("proportional share of anonymous.")]),
+                Row::new(vec![Span::raw("* pss_dirty: ").bold(), Span::raw("proportional share of dirty.")]),
+                Row::new(vec![Span::raw("* pss_file: ").bold(), Span::raw("proporotional share of file.")]),
+                Row::new(vec![Span::raw("* pss_shmem: ").bold(), Span::raw("proportional share of of shmem.")]),
+                Row::new(vec![Span::raw("* referenced: ").bold(), Span::raw("indicates the amount of memory currently marked as referenced or accessed")]),
+                Row::new(vec![Span::raw("* rss: ").bold(), Span::raw("the amount of the mapping that is currently resident in RAM.")]),
+                Row::new(vec![Span::raw("* shared_clean: ").bold(), Span::raw("the number of clean shared pages in the mapping")]),
+                Row::new(vec![Span::raw("* shared_dirty: ").bold(), Span::raw("the number of dirty shared pages in the mapping")]),
+                Row::new(vec![Span::raw("* shared_hugetlb: ").bold(), Span::raw("show the amounts of memory backed by hugetlbfs page which is not counted in “RSS” or “PSS” field for historical reasons. And these are not included in {Shared,Private}_{Clean,Dirty} field.")]),
+                Row::new(vec![Span::raw("* shmempmdmapped: ").bold(), Span::raw("shows the amount of shared (shmem/tmpfs) memory backed by huge pages.")]),
+                Row::new(vec![Span::raw("* size: ").bold(), Span::raw("the size of the mapping")]),
+                Row::new(vec![Span::raw("* swap: ").bold(), Span::raw("shows how much would-be-anonymous memory is also used, but out on swap.")]),
+                Row::new(vec![Span::raw("* swappss: ").bold(), Span::raw("shows proportional swap share of this mapping. Unlike “Swap”, this does not take into account swapped out page of underlying shmem objects.")]),
+                Row::new(vec![Span::raw("source: ").bold(), Span::raw("https://www.kernel.org/doc/html/latest/filesystems/proc.html")]),
+            ]
+        };
+        let widths = [Constraint::Length(20), Constraint::Fill(1)];
+        let widget = Table::new(rows, widths).block(term_block);
+        Widget::render(widget, popup_chunks[0], buf);
     }
 }
 
