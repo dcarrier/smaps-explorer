@@ -42,7 +42,10 @@ pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
             },
             KeyCode::Tab => app.switch_pane(),
             KeyCode::Char('/') => app.path_list_widget.toggle(),
-            KeyCode::Char('h') => app.help_widget.toggle(),
+            KeyCode::Char('h') => {
+                app.help_widget.toggle();
+                app.legend_widget.help_toggled();
+            }
             KeyCode::Char('v') => app.help_widget.toggle_vm_flags(),
             _ => {}
         },

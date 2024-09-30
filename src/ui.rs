@@ -10,8 +10,8 @@ use ratatui::{
     prelude::*,
     style::Style,
     widgets::{
-        Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph, Row, Table,
-        TableState, Widget, Wrap,
+        Block, BorderType, Borders, Cell, Clear, List, ListItem, ListState, Paragraph, Row, Table,
+        TableState, Widget,
     },
     Frame,
 };
@@ -379,26 +379,46 @@ impl Widget for &mut PathListWidget {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct LegendWidget {}
+pub struct LegendWidget {
+    help_toggled: bool,
+}
 
 impl LegendWidget {
     fn render_legend_widget(self, layout: Rect, frame: &mut Frame) {
         frame.render_widget(self, layout);
     }
+
+    pub fn help_toggled(&mut self) {
+        self.help_toggled = !self.help_toggled;
+    }
 }
 
 impl Widget for LegendWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let text = Text::from(vec![Line::from(
-            "tab/enter - switch pane\t | \t j - down\t | \t k - up\t | \t g - top\t | \t G - bottom\t | \t / - filter path\t | \t h - help\t | \t v - vm flags (while in help)",
-        )]);
-        let widget = Paragraph::new(text)
-            .block(
-                Block::new()
-                    .borders(Borders::TOP)
-                    .border_type(BorderType::Double),
-            )
-            .centered();
+        let rows: Vec<Row> = if self.help_toggled {
+            vec![Row::new(vec![
+                Cell::from(Text::from("v - vm flags").alignment(Alignment::Center)),
+                Cell::from(Text::from("h - exit").alignment(Alignment::Center)),
+            ])]
+        } else {
+            vec![Row::new(vec![
+                Cell::from(Text::from("tab - switch pane").alignment(Alignment::Center)),
+                Cell::from(Text::from("j - down").alignment(Alignment::Center)),
+                Cell::from(Text::from("k - up").alignment(Alignment::Center)),
+                Cell::from(Text::from("g - top").alignment(Alignment::Center)),
+                Cell::from(Text::from("G - bottom").alignment(Alignment::Center)),
+                Cell::from(Text::from("/ - filter path").alignment(Alignment::Center)),
+                Cell::from(Text::from("h - help").alignment(Alignment::Center)),
+                Cell::from(Text::from("ESC/q - quit").alignment(Alignment::Center)),
+            ])]
+        };
+        let widths = [Constraint::Length(20); 8];
+        let widget = Table::new(rows, widths).block(
+            Block::new()
+                .borders(Borders::TOP)
+                .border_type(BorderType::Double),
+        );
+        Clear.render(area, buf);
         Widget::render(widget, area, buf);
     }
 }
@@ -460,9 +480,6 @@ impl HelpWidget {
 
 impl Widget for &HelpWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // Important to Clear before painting a new widget on top of existing layout.
-        Clear.render(area, buf);
-
         let popup_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Fill(1)])
@@ -546,6 +563,7 @@ impl Widget for &HelpWidget {
         };
         let widths = [Constraint::Length(20), Constraint::Fill(1)];
         let widget = Table::new(rows, widths).block(term_block);
+        Clear.render(area, buf);
         Widget::render(widget, popup_chunks[0], buf);
     }
 }
