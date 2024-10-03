@@ -322,15 +322,26 @@ impl PathListWidget {
     }
 
     pub fn go_bottom(&mut self) {
-        self.state.select_last();
+        let idx = self.memory_maps.len() - 1;
+        self.state.select(Some(idx));
     }
 
     pub fn next(&mut self) {
-        self.state.select_next();
+        if let Some(v) = self.state.selected() {
+            let idx = (v + 1) % self.memory_maps.len();
+            self.state.select(Some(idx));
+        };
     }
 
     pub fn previous(&mut self) {
-        self.state.select_previous();
+        if let Some(v) = self.state.selected() {
+            let idx = if v == 0 {
+                self.memory_maps.len() - 1
+            } else {
+                v - 1
+            };
+            self.state.select(Some(idx));
+        };
     }
 
     pub fn selected_identifiers(&self) -> Option<usize> {
