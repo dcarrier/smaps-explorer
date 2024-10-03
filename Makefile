@@ -1,5 +1,5 @@
 run:
-	pidof gdb | cargo run -- -
+	pidof -s systemd | cargo run -- -
 
 run-debug:
-	pidof gdb | cargo run -- --debug -
+	pidof -s systemd | cargo run -- --debug -
