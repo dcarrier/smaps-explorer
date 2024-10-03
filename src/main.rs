@@ -14,6 +14,7 @@ use tui_logger::*;
 
 #[derive(Parser, Debug)]
 struct Args {
+    #[arg(help = "or '-' for stdin.")]
     pid: MaybeStdin<i32>,
     #[arg(short, long, default_value_t = false)]
     debug: bool,
