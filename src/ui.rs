@@ -624,7 +624,7 @@ pub fn render(app: &mut App, frame: &mut Frame) {
             .render_memory_widget(main_layout[0], frame, indices);
         app.log_widget.render_log_widget(main_layout[1], frame);
         app.path_list_widget.render_list_widget(
-            main_layout[1],
+            main_layout[2],
             frame,
             app.path_filter_widget.filter.clone(),
         );
