@@ -5,7 +5,6 @@ use log::LevelFilter;
 use nucleo::pattern::{CaseMatching, Normalization};
 use nucleo::{Config, Nucleo, Utf32String};
 use procfs::process::MemoryMap;
-use ratatui::style::palette::tailwind;
 use ratatui::{
     prelude::*,
     style::Style,
@@ -19,8 +18,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::thread::available_parallelism;
 use tui_logger::{TuiLoggerLevelOutput, TuiLoggerWidget, TuiWidgetState};
-
-const SELECTED_STYLE_FG: Color = tailwind::BLUE.c300;
 
 #[derive(Clone, Debug)]
 pub struct SegmentTableWidget {
@@ -378,12 +375,9 @@ impl Widget for &mut PathListWidget {
             .title("Path")
             .title_alignment(Alignment::Center);
 
-        let list = List::new(paths).block(inner_block).highlight_style(
-            Style::default()
-                .add_modifier(Modifier::BOLD)
-                .add_modifier(Modifier::REVERSED)
-                .fg(SELECTED_STYLE_FG),
-        );
+        let list = List::new(paths)
+            .block(inner_block)
+            .highlight_style(Style::new().light_yellow());
 
         StatefulWidget::render(list, area, buf, &mut self.state)
     }
