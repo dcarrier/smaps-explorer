@@ -1,11 +1,11 @@
 use clap::Parser;
 use clap_stdin::MaybeStdin;
 use log::*;
-use mematlas_rs::app::App;
-use mematlas_rs::event::Event;
-use mematlas_rs::event::EventHandler;
-use mematlas_rs::handler::handle_key_events;
-use mematlas_rs::tui::Tui;
+use smaps_explorer::app::App;
+use smaps_explorer::event::Event;
+use smaps_explorer::event::EventHandler;
+use smaps_explorer::handler::handle_key_events;
+use smaps_explorer::tui::Tui;
 use ratatui::prelude::CrosstermBackend;
 use ratatui::Terminal;
 use std::error::Error;

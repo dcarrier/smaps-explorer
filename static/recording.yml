@@ -131,7 +131,7 @@ records:
   - delay: 182
     content: "\r\n\e[?2004l\rpidof -s systemd | cargo run -- -\r\n"
   - delay: 146
-    content: "\e[1m\e[32m    Finished\e[0m `dev` profile [unoptimized + debuginfo] target(s) in 0.09s\r\n\e[1m\e[32m     Running\e[0m `target/debug/mematlas-rs -`\r\n"
+    content: "\e[1m\e[32m    Finished\e[0m `dev` profile [unoptimized + debuginfo] target(s) in 0.09s\r\n\e[1m\e[32m     Running\e[0m `target/debug/smaps-explorer -`\r\n"
   - delay: 16
     content: "\e[?1049h\e[?1000h\e[?1002h\e[?1003h\e[?1015h\e[?1006h\e[?25l\e[2J"
   - delay: 17
