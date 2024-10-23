@@ -30,7 +30,8 @@
   </p>
 </div>
 
-![demo][demo]
+<img src="static/demo.gif" alt="demo" style="display: block; max-width: 100%; height: auto; border: none;">
+
 <!-- GETTING STARTED -->
 
 ## Getting Started
@@ -85,4 +86,3 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-[demo]: static/demo.gif
