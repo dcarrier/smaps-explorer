@@ -62,8 +62,6 @@ impl App {
 
     /// Handles the tick event of the terminal.
     pub fn tick(&mut self) {
-        // TODO: Need to tick on the searcher each time.
-        // Re-evaluate this timeout value.
         self.path_list_widget.searcher.tick(10);
     }
 

@@ -175,7 +175,6 @@ impl InfoWidget {
 
 impl Widget for &mut InfoWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        // TODO: I don't love this clone, needs to be a better way to do this.
         match self.selected_segment.clone() {
             Some(v) => {
                 let mut rows: Vec<Row> = vec![

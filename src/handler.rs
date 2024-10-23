@@ -3,8 +3,6 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 /// Handles the key events and updates the state of [`App`].
 pub fn handle_key_events(key_event: KeyEvent, app: &mut App) -> AppResult<()> {
-    // TODO: I don't like this top level match much, but I am hacking to get this to work
-    // for now.
     match app.path_list_widget.toggle {
         true => match key_event.code {
             KeyCode::Char('/') | KeyCode::Enter => app.path_list_widget.toggle(),
